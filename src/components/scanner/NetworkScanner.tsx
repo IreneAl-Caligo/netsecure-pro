@@ -7,6 +7,8 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { handleNetworkScan } from "@/api/networkScanHandler";
+import { scannerApi } from "@/services/ScannerApiService";
 
 interface NetworkDevice {
   ip: string;
@@ -25,9 +27,23 @@ export function NetworkScanner() {
   const [results, setResults] = useState<NetworkDevice[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [scanMethod, setScanMethod] = useState<"arp" | "ping" | "full">("arp");
+  const [apiKey, setApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   const { toast } = useToast();
 
-  // Check if browser supports required WebRTC APIs for local network scanning
+  useEffect(() => {
+    const savedKey = scannerApi.getApiKey('network');
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (apiKey) {
+      scannerApi.setApiKey('network', apiKey);
+    }
+  }, [apiKey]);
+
   useEffect(() => {
     const checkCapabilities = () => {
       if (!navigator.mediaDevices || typeof RTCPeerConnection === 'undefined') {
@@ -39,13 +55,11 @@ export function NetworkScanner() {
   }, []);
 
   const validateIpRange = (range: string): boolean => {
-    // Basic validation for IP range format
     const ipCidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
     if (!ipCidrRegex.test(range)) {
       return false;
     }
     
-    // Check if the IP parts are valid (0-255)
     const ipPart = range.split('/')[0];
     const octets = ipPart.split('.');
     
@@ -56,7 +70,6 @@ export function NetworkScanner() {
       }
     }
     
-    // Check if CIDR is valid (0-32)
     const cidr = parseInt(range.split('/')[1], 10);
     if (isNaN(cidr) || cidr < 0 || cidr > 32) {
       return false;
@@ -88,7 +101,6 @@ export function NetworkScanner() {
         description: `Starting network scan of ${ipRange}`,
       });
 
-      // Start progress visualization
       progressInterval = setInterval(() => {
         setProgress(prev => {
           if (prev >= 95) {
@@ -103,102 +115,32 @@ export function NetworkScanner() {
       }, 500);
 
       try {
-        // Attempt to actually scan the network
-        // This uses the browser's WebRTC to get local IP, then fetches /api/network-scan
-        const response = await fetch('/api/network-scan', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ipRange,
-            scanMethod
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Error during network scan');
-        }
-
-        const scanData = await response.json();
+        const scanData = await handleNetworkScan(ipRange, scanMethod);
+        
         if (progressInterval) {
           clearInterval(progressInterval);
           progressInterval = null;
         }
         setProgress(100);
         
-        if (scanData.devices && Array.isArray(scanData.devices)) {
+        if (scanData.success && scanData.devices && Array.isArray(scanData.devices)) {
           setResults(scanData.devices);
-        } else {
-          throw new Error('Invalid response from network scan API');
-        }
-      } catch (apiError) {
-        console.error('API Error:', apiError);
-        
-        // Use WebRTC to try and get local IP
-        try {
-          const peerConnection = new RTCPeerConnection({ 
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] 
-          });
           
-          peerConnection.createDataChannel('');
-          peerConnection.createOffer().then(offer => peerConnection.setLocalDescription(offer));
-          
-          let localIP: string | null = null;
-          
-          peerConnection.addEventListener('icegatheringstatechange', () => {
-            if (peerConnection.iceGatheringState === 'complete') {
-              peerConnection.localDescription?.sdp.split('\n').forEach(line => {
-                if (line.indexOf('a=candidate:') === 0) {
-                  const parts = line.split(' ');
-                  const addr = parts[4];
-                  if (addr.indexOf('.') !== -1 && !localIP) {
-                    localIP = addr;
-                    console.log('Found local IP:', localIP);
-                    
-                    // Use the local IP to initiate an alternative scanning method
-                    fetch(`https://api.networkscan.io/scan?ip=${encodeURIComponent(localIP)}&range=${ipRange}`, {
-                      headers: {
-                        'Authorization': 'Bearer YOUR_API_KEY' // In a real app, this would be from environment or user input
-                      }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                      if (data.success && data.devices) {
-                        setResults(data.devices);
-                      }
-                    })
-                    .catch(err => {
-                      console.error('Alternative API scan failed:', err);
-                      setError("Network scanning requires special permissions. Please install a dedicated network scanning tool for accurate results.");
-                    })
-                    .finally(() => {
-                      if (progressInterval) {
-                        clearInterval(progressInterval);
-                        progressInterval = null;
-                      }
-                      setProgress(100);
-                    });
-                  }
-                }
-              });
-              
-              if (!localIP) {
-                throw new Error('Could not determine local IP address');
-              }
-            }
-          });
-        } catch (webrtcError) {
-          console.error('WebRTC Error:', webrtcError);
-          setError("Network scanning requires special permissions or extensions in web browsers. For security reasons, browsers restrict direct network access.");
-          
-          if (progressInterval) {
-            clearInterval(progressInterval);
-            progressInterval = null;
+          if (scanData.message) {
+            setError(scanData.message);
           }
-          setProgress(100);
+        } else {
+          throw new Error(scanData.error || 'Invalid response from network scan API');
         }
+      } catch (apiError: any) {
+        console.error('API Error:', apiError);
+        setError(`Network scanning error: ${apiError.message || 'Unknown error'}. Network scanning requires special permissions or extensions in web browsers.`);
+        
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+        setProgress(100);
       }
     } catch (err) {
       console.error("Error during network scan:", err);
@@ -269,6 +211,36 @@ export function NetworkScanner() {
                 Full Scan (Slow)
               </Badge>
             </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="text-xs"
+              onClick={() => setShowApiKey(!showApiKey)}
+            >
+              {showApiKey ? "Hide API Options" : "API Options"}
+            </Button>
+            
+            {showApiKey && (
+              <div className="p-3 border border-border/50 rounded-md space-y-2 bg-background/50">
+                <label htmlFor="api-key" className="text-sm">API Key (Required for full scanning)</label>
+                <Input
+                  id="api-key"
+                  type="password"
+                  placeholder="Enter network scanner API key"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="text-sm"
+                  disabled={scanning}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Using an API key from a network scanning service will provide real scanning data.
+                  Without a key, browser limitations will prevent detailed scanning.
+                </p>
+              </div>
+            )}
           </div>
           
           {scanning && (
@@ -368,7 +340,7 @@ export function NetworkScanner() {
                 <div className="rounded-lg border border-border/50 p-4 bg-background/50 text-center">
                   <Network className="h-16 w-16 mx-auto text-primary mb-2 opacity-50" />
                   <p className="text-sm text-muted-foreground">
-                    Network map visualization requires advanced permissions or a backend service.
+                    Network map visualization requires a dedicated scanning tool or API service with an appropriate API key.
                   </p>
                 </div>
               </TabsContent>
