@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Wifi, Server, Network, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -76,6 +75,8 @@ export function NetworkScanner() {
       return;
     }
 
+    let progressInterval: ReturnType<typeof setInterval> | null = null;
+
     try {
       setScanning(true);
       setProgress(0);
@@ -88,10 +89,13 @@ export function NetworkScanner() {
       });
 
       // Start progress visualization
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         setProgress(prev => {
           if (prev >= 95) {
-            clearInterval(progressInterval);
+            if (progressInterval) {
+              clearInterval(progressInterval);
+              progressInterval = null;
+            }
             return 95;
           }
           return prev + (Math.random() * 3);
@@ -99,9 +103,8 @@ export function NetworkScanner() {
       }, 500);
 
       try {
-        // Attempt to connect to a real local network scanning API
-        // Note: This would be implemented as a local backend service or browser extension
-        // that can perform network scanning operations
+        // Attempt to actually scan the network
+        // This uses the browser's WebRTC to get local IP, then fetches /api/network-scan
         const response = await fetch('/api/network-scan', {
           method: 'POST',
           headers: {
@@ -119,7 +122,10 @@ export function NetworkScanner() {
         }
 
         const scanData = await response.json();
-        clearInterval(progressInterval);
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
         setProgress(100);
         
         if (scanData.devices && Array.isArray(scanData.devices)) {
@@ -130,9 +136,8 @@ export function NetworkScanner() {
       } catch (apiError) {
         console.error('API Error:', apiError);
         
-        // Since we don't have a real backend, attempt to do a web-based network discovery
+        // Use WebRTC to try and get local IP
         try {
-          // Use WebRTC to try and get local IP
           const peerConnection = new RTCPeerConnection({ 
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] 
           });
@@ -152,70 +157,29 @@ export function NetworkScanner() {
                     localIP = addr;
                     console.log('Found local IP:', localIP);
                     
-                    // Generate educational data about what would be found on a real network
-                    const baseIp = localIP.split('.').slice(0, 3).join('.');
-                    
-                    setResults([
-                      {
-                        ip: `${baseIp}.1`,
-                        mac: "00:11:22:33:44:55",
-                        hostname: "router.local",
-                        status: "Online",
-                        vendor: "Cisco Systems, Inc.",
-                        os: "Embedded Linux",
-                        openPorts: [
-                          { port: 80, service: "HTTP" },
-                          { port: 443, service: "HTTPS" },
-                          { port: 22, service: "SSH" }
-                        ]
-                      },
-                      {
-                        ip: localIP,
-                        mac: "aa:bb:cc:dd:ee:ff",
-                        hostname: "this-device.local",
-                        status: "Online",
-                        vendor: "Intel Corporate",
-                        os: "Current OS",
-                        openPorts: []
-                      },
-                      {
-                        ip: `${baseIp}.15`,
-                        mac: "11:22:33:44:55:66",
-                        hostname: "smart-tv.local",
-                        status: "Online",
-                        vendor: "Samsung Electronics Co.,Ltd",
-                        os: "Tizen OS",
-                        openPorts: [
-                          { port: 8080, service: "HTTP-ALT" },
-                          { port: 8443, service: "HTTPS-ALT" }
-                        ]
-                      },
-                      {
-                        ip: `${baseIp}.20`,
-                        mac: "22:33:44:55:66:77",
-                        hostname: "printer.local",
-                        status: "Online",
-                        vendor: "HP Inc.",
-                        os: "HP Printer Firmware",
-                        openPorts: [
-                          { port: 631, service: "IPP" },
-                          { port: 9100, service: "PDL-DATASTREAM" }
-                        ]
-                      },
-                      {
-                        ip: `${baseIp}.25`,
-                        mac: "33:44:55:66:77:88",
-                        hostname: "nas.local",
-                        status: "Online",
-                        vendor: "Synology Inc.",
-                        os: "Synology DSM",
-                        openPorts: [
-                          { port: 5000, service: "UPnP" },
-                          { port: 5001, service: "Synology DSM" },
-                          { port: 22, service: "SSH" }
-                        ]
+                    // Use the local IP to initiate an alternative scanning method
+                    fetch(`https://api.networkscan.io/scan?ip=${encodeURIComponent(localIP)}&range=${ipRange}`, {
+                      headers: {
+                        'Authorization': 'Bearer YOUR_API_KEY' // In a real app, this would be from environment or user input
                       }
-                    ]);
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                      if (data.success && data.devices) {
+                        setResults(data.devices);
+                      }
+                    })
+                    .catch(err => {
+                      console.error('Alternative API scan failed:', err);
+                      setError("Network scanning requires special permissions. Please install a dedicated network scanning tool for accurate results.");
+                    })
+                    .finally(() => {
+                      if (progressInterval) {
+                        clearInterval(progressInterval);
+                        progressInterval = null;
+                      }
+                      setProgress(100);
+                    });
                   }
                 }
               });
@@ -229,38 +193,19 @@ export function NetworkScanner() {
           console.error('WebRTC Error:', webrtcError);
           setError("Network scanning requires special permissions or extensions in web browsers. For security reasons, browsers restrict direct network access.");
           
-          // Show limited educational data
-          setResults([
-            {
-              ip: "192.168.1.1",
-              mac: "00:11:22:33:44:55",
-              hostname: "router.local",
-              status: "Online",
-              vendor: "Typical Router Vendor",
-              os: "Embedded Linux",
-              openPorts: [
-                { port: 80, service: "HTTP" },
-                { port: 443, service: "HTTPS" }
-              ]
-            },
-            {
-              ip: "192.168.1.100",
-              mac: "aa:bb:cc:dd:ee:ff",
-              hostname: "example-device.local",
-              status: "Online",
-              vendor: "Example Vendor",
-              os: "Example OS",
-              openPorts: []
-            }
-          ]);
+          if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+          }
+          setProgress(100);
         }
-        
-        clearInterval(progressInterval);
-        setProgress(100);
       }
     } catch (err) {
       console.error("Error during network scan:", err);
-      clearInterval(progressInterval);
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
       setScanning(false);
       setError("An unexpected error occurred. Network scanning requires special permissions in web browsers.");
       toast({
