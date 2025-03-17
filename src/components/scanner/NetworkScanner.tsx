@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from "react";
-import { Wifi, Server, Network, AlertCircle } from "lucide-react";
+import { Wifi, Server, Network, AlertCircle, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { handleNetworkScan } from "@/api/networkScanHandler";
 import { scannerApi } from "@/services/ScannerApiService";
+import { ApiKeyConfig } from "./ApiKeyConfig";
 
 interface NetworkDevice {
   ip: string;
@@ -20,38 +22,27 @@ interface NetworkDevice {
   openPorts?: {port: number; service: string}[];
 }
 
-export function NetworkScanner() {
+interface NetworkScannerProps {
+  hasApiKey?: boolean;
+}
+
+export function NetworkScanner({ hasApiKey }: NetworkScannerProps) {
   const [ipRange, setIpRange] = useState("192.168.1.0/24");
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<NetworkDevice[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [scanMethod, setScanMethod] = useState<"arp" | "ping" | "full">("arp");
-  const [apiKey, setApiKey] = useState("");
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [showApiConfig, setShowApiConfig] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedKey = scannerApi.getApiKey('network');
-    if (savedKey) {
-      setApiKey(savedKey);
+    // Check if API key is configured
+    const apiKey = scannerApi.getApiKey('network');
+    if (!apiKey) {
+      setError("No API key configured. Real network scanning requires an API key from a security scanning service.");
+      setShowApiConfig(true);
     }
-  }, []);
-
-  useEffect(() => {
-    if (apiKey) {
-      scannerApi.setApiKey('network', apiKey);
-    }
-  }, [apiKey]);
-
-  useEffect(() => {
-    const checkCapabilities = () => {
-      if (!navigator.mediaDevices || typeof RTCPeerConnection === 'undefined') {
-        setError("Your browser does not support the WebRTC APIs needed for network scanning. Try using Chrome or Firefox.");
-      }
-    };
-    
-    checkCapabilities();
   }, []);
 
   const validateIpRange = (range: string): boolean => {
@@ -88,6 +79,14 @@ export function NetworkScanner() {
       return;
     }
 
+    // Check if API key is configured
+    const apiKey = scannerApi.getApiKey('network');
+    if (!apiKey) {
+      setError("No API key configured. Real network scanning requires an API key from a security scanning service.");
+      setShowApiConfig(true);
+      return;
+    }
+
     let progressInterval: ReturnType<typeof setInterval> | null = null;
 
     try {
@@ -115,6 +114,7 @@ export function NetworkScanner() {
       }, 500);
 
       try {
+        // Use the network scan handler which now properly uses the API key
         const scanData = await handleNetworkScan(ipRange, scanMethod);
         
         if (progressInterval) {
@@ -129,18 +129,35 @@ export function NetworkScanner() {
           if (scanData.message) {
             setError(scanData.message);
           }
+          
+          toast({
+            title: "Scan Complete",
+            description: `Found ${scanData.devices.length} devices on your network`,
+          });
         } else {
           throw new Error(scanData.error || 'Invalid response from network scan API');
         }
       } catch (apiError: any) {
         console.error('API Error:', apiError);
-        setError(`Network scanning error: ${apiError.message || 'Unknown error'}. Network scanning requires special permissions or extensions in web browsers.`);
+        
+        if (apiError.message?.includes('API key')) {
+          setError("Invalid or expired API key. Please update your API key in the settings.");
+          setShowApiConfig(true);
+        } else {
+          setError(`Network scanning error: ${apiError.message || 'Unknown error'}. Network scanning requires special permissions or APIs.`);
+        }
         
         if (progressInterval) {
           clearInterval(progressInterval);
           progressInterval = null;
         }
         setProgress(100);
+        
+        toast({
+          title: "Scan Failed",
+          description: "Failed to complete network scan",
+          variant: "destructive",
+        });
       }
     } catch (err) {
       console.error("Error during network scan:", err);
@@ -162,10 +179,32 @@ export function NetworkScanner() {
 
   return (
     <div className="animate-fade-in space-y-6">
-      <div className="flex items-center space-x-2">
-        <Wifi className="h-6 w-6 text-primary" />
-        <h2 className="text-2xl font-bold">Network Scanner</h2>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Wifi className="h-6 w-6 text-primary" />
+          <h2 className="text-2xl font-bold">Network Scanner</h2>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => setShowApiConfig(!showApiConfig)}
+          className="flex items-center gap-1"
+        >
+          <Settings className="h-4 w-4" />
+          API Settings
+        </Button>
       </div>
+      
+      {showApiConfig && (
+        <ApiKeyConfig 
+          scannerType="network" 
+          isVisible={showApiConfig} 
+          onDone={() => {
+            setShowApiConfig(false);
+            setError(null);
+          }}
+        />
+      )}
       
       <Card className="backdrop-blur-sm bg-card/80 border-border/50">
         <CardHeader>
@@ -211,36 +250,6 @@ export function NetworkScanner() {
                 Full Scan (Slow)
               </Badge>
             </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="text-xs"
-              onClick={() => setShowApiKey(!showApiKey)}
-            >
-              {showApiKey ? "Hide API Options" : "API Options"}
-            </Button>
-            
-            {showApiKey && (
-              <div className="p-3 border border-border/50 rounded-md space-y-2 bg-background/50">
-                <label htmlFor="api-key" className="text-sm">API Key (Required for full scanning)</label>
-                <Input
-                  id="api-key"
-                  type="password"
-                  placeholder="Enter network scanner API key"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  className="text-sm"
-                  disabled={scanning}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Using an API key from a network scanning service will provide real scanning data.
-                  Without a key, browser limitations will prevent detailed scanning.
-                </p>
-              </div>
-            )}
           </div>
           
           {scanning && (

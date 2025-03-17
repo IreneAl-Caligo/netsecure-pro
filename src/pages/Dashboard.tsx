@@ -7,7 +7,16 @@ import { NetworkScanner } from "@/components/scanner/NetworkScanner";
 import { TrafficAnalyzer } from "@/components/scanner/TrafficAnalyzer";
 import { PortScanner } from "@/components/scanner/PortScanner";
 
-export default function Dashboard() {
+interface DashboardProps {
+  apiKeysConfigured?: {
+    vulnerability: boolean;
+    network: boolean;
+    port: boolean;
+    traffic: boolean;
+  };
+}
+
+export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
   const [activeScanner, setActiveScanner] = useState<string | null>(null);
   
   const scanners = [
@@ -16,28 +25,28 @@ export default function Dashboard() {
       title: "Web Vulnerability Scanner",
       description: "Scan websites for security vulnerabilities",
       icon: <Shield className="h-5 w-5" />,
-      component: <WebVulnerabilityScanner />
+      component: <WebVulnerabilityScanner hasApiKey={apiKeysConfigured?.vulnerability} />
     },
     {
       id: "network-scanner",
       title: "Network Scanner",
       description: "Discover devices on your network",
       icon: <Wifi className="h-5 w-5" />,
-      component: <NetworkScanner />
+      component: <NetworkScanner hasApiKey={apiKeysConfigured?.network} />
     },
     {
       id: "traffic-analyzer",
       title: "Traffic Analyzer",
       description: "Analyze network traffic and packet data",
       icon: <Activity className="h-5 w-5" />,
-      component: <TrafficAnalyzer />
+      component: <TrafficAnalyzer hasApiKey={apiKeysConfigured?.traffic} />
     },
     {
       id: "port-scanner",
       title: "Port Scanner",
       description: "Scan for open ports on target systems",
       icon: <Layers className="h-5 w-5" />,
-      component: <PortScanner />
+      component: <PortScanner hasApiKey={apiKeysConfigured?.port} />
     }
   ];
   

@@ -7,7 +7,13 @@ import { scannerApi } from "../services/ScannerApiService";
  */
 export async function handleNetworkScan(ipRange: string, scanMethod: string) {
   try {
-    // Use our scanner API service to handle the network scan
+    // Check if we have an API key for network scanning
+    const apiKey = scannerApi.getApiKey('network');
+    if (!apiKey) {
+      throw new Error('No API key available for network scanning');
+    }
+    
+    // Use our scanner API service to handle the network scan with real data
     return await scannerApi.scanNetwork(ipRange, scanMethod);
   } catch (error) {
     console.error("Network scan error:", error);
@@ -73,7 +79,7 @@ async function performBrowserNetworkDetection(ipRange: string) {
                 resolve({ 
                   success: true, 
                   devices,
-                  message: "Browser-based network detection completed. For more accurate results, please use a dedicated scanning tool with proper API access."
+                  message: "Browser-based network detection completed. For real network scanning, please configure a network scanning API key in the API Options. Browser security prevents comprehensive scanning."
                 });
               }
             }
@@ -86,7 +92,7 @@ async function performBrowserNetworkDetection(ipRange: string) {
         if (!localIP) {
           resolve({ 
             success: false, 
-            error: "Could not determine local IP address. Please ensure you have proper permissions and API keys configured." 
+            error: "Could not determine local IP address. Please ensure you have proper permissions and API keys configured for real network scanning." 
           });
         }
       }, 5000);
@@ -94,7 +100,7 @@ async function performBrowserNetworkDetection(ipRange: string) {
       console.error("WebRTC error:", error);
       resolve({ 
         success: false, 
-        error: "WebRTC error: Could not determine local network information. Please ensure you have proper permissions and API keys configured." 
+        error: "WebRTC error: Could not determine local network information. Please ensure you have proper API keys configured for real network scanning." 
       });
     }
   });

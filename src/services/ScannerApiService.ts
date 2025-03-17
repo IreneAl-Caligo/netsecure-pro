@@ -2,10 +2,17 @@
 /**
  * This service handles API calls for the various security scanning components
  */
+import { 
+  vulnerabilityScannerAPIs, 
+  networkScannerAPIs, 
+  trafficAnalyzerAPIs, 
+  portScannerAPIs 
+} from '@/config/scannerConfig';
 
 export interface ApiConfig {
   apiKey?: string;
   baseUrl?: string;
+  provider?: string;
 }
 
 export type ScannerType = 'vulnerability' | 'network' | 'port' | 'traffic';
@@ -19,6 +26,7 @@ class ScannerApiService {
   };
   
   private apiKeys: Record<string, string> = {};
+  private apiProviders: Record<string, string> = {};
 
   constructor() {
     // Load any saved API keys on initialization
@@ -32,16 +40,55 @@ class ScannerApiService {
       if (savedKey) {
         this.apiKeys[type] = savedKey;
       }
+      
+      const savedProvider = localStorage.getItem(`scanner_api_provider_${type}`);
+      if (savedProvider) {
+        this.apiProviders[type] = savedProvider;
+        
+        // Update the base URL if we have a provider
+        const providers = this.getProvidersByType(type);
+        const provider = providers.find(p => p.name === savedProvider);
+        if (provider) {
+          this.baseUrls[type] = provider.url;
+        }
+      }
     });
   }
 
+  getProvidersByType(scannerType: ScannerType) {
+    switch(scannerType) {
+      case 'vulnerability':
+        return vulnerabilityScannerAPIs;
+      case 'network':
+        return networkScannerAPIs;
+      case 'port':
+        return portScannerAPIs;
+      case 'traffic':
+        return trafficAnalyzerAPIs;
+      default:
+        return [];
+    }
+  }
+
   /**
-   * Set API key for a specific scanner type
+   * Set API key and provider for a specific scanner type
    */
-  setApiKey(scannerType: ScannerType, apiKey: string) {
+  setApiKey(scannerType: ScannerType, apiKey: string, provider?: string) {
     this.apiKeys[scannerType] = apiKey;
-    // Store in localStorage for persistence
     localStorage.setItem(`scanner_api_key_${scannerType}`, apiKey);
+    
+    if (provider) {
+      this.apiProviders[scannerType] = provider;
+      localStorage.setItem(`scanner_api_provider_${scannerType}`, provider);
+      
+      // Update the base URL if provider exists in our list
+      const providers = this.getProvidersByType(scannerType);
+      const providerInfo = providers.find(p => p.name === provider);
+      if (providerInfo) {
+        this.baseUrls[scannerType] = providerInfo.url;
+      }
+    }
+    
     return true;
   }
 
@@ -64,20 +111,65 @@ class ScannerApiService {
   }
 
   /**
+   * Get API provider for a specific scanner type
+   */
+  getApiProvider(scannerType: ScannerType): string {
+    // Try to get from memory first
+    let provider = this.apiProviders[scannerType];
+    
+    // If not in memory, try localStorage
+    if (!provider) {
+      provider = localStorage.getItem(`scanner_api_provider_${scannerType}`) || '';
+      if (provider) {
+        this.apiProviders[scannerType] = provider;
+      }
+    }
+    
+    return provider;
+  }
+
+  /**
+   * Get the base URL for a scanner type
+   */
+  getBaseUrl(scannerType: ScannerType): string {
+    return this.baseUrls[scannerType];
+  }
+
+  /**
    * Clear API key for a specific scanner type
    */
   clearApiKey(scannerType: ScannerType) {
     delete this.apiKeys[scannerType];
+    delete this.apiProviders[scannerType];
     localStorage.removeItem(`scanner_api_key_${scannerType}`);
+    localStorage.removeItem(`scanner_api_provider_${scannerType}`);
   }
 
   /**
    * Check if an API key is valid by making a test request
    */
-  async testApiKey(scannerType: ScannerType, apiKey: string): Promise<boolean> {
+  async testApiKey(scannerType: ScannerType, apiKey: string, provider?: string): Promise<boolean> {
     try {
-      const baseUrl = this.baseUrls[scannerType];
-      const response = await fetch(`${baseUrl}/verify-key`, {
+      let baseUrl = this.baseUrls[scannerType];
+      
+      // If provider is specified, try to get the URL from our config
+      if (provider) {
+        const providers = this.getProvidersByType(scannerType);
+        const providerInfo = providers.find(p => p.name === provider);
+        if (providerInfo) {
+          baseUrl = providerInfo.url;
+        }
+      }
+      
+      // Different test endpoints for different scanner types
+      const testEndpoints = {
+        vulnerability: '/verify-key',
+        network: '/verify-key',
+        port: '/verify-key',
+        traffic: '/verify-key'
+      };
+      
+      const response = await fetch(`${baseUrl}${testEndpoints[scannerType]}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,10 +230,11 @@ class ScannerApiService {
     }
     
     // If backend API fails or doesn't exist, try external API
-    const baseUrl = this.baseUrls[scannerType];
+    const baseUrl = this.getBaseUrl(scannerType);
     const headers = this.getHeaders(scannerType);
     
-    return fetch(`${baseUrl}/${endpoint}`, {
+    // Make the actual API request
+    return fetch(`${baseUrl}${endpoint}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(data)
@@ -153,10 +246,39 @@ class ScannerApiService {
    */
   async scanForVulnerabilities(url: string, options: any = {}): Promise<any> {
     try {
+      // Different request paths for different vulnerability scanners
+      const provider = this.getApiProvider('vulnerability');
+      let requestPath = '/scan';
+      let requestData: any = { target: url, options };
+      
+      // Adjust request based on provider
+      if (provider) {
+        switch(provider) {
+          case 'Acunetix':
+            requestPath = '/targets/scan';
+            requestData = { address: url, description: 'Web scan', criticality: 10 };
+            break;
+          case 'StackHawk':
+            requestPath = '/api/v1/scan';
+            requestData = { url, scanConfig: options };
+            break;
+          case 'OWASP ZAP':
+            requestPath = '/JSON/ascan/action/scan';
+            requestData = { url, recurse: options.fullScan ? 'true' : 'false' };
+            break;
+          case 'Qualys':
+            requestPath = '/scan/new';
+            requestData = { target: url, option: 'WEB_APP', profile: options.fullScan ? 'COMPREHENSIVE' : 'QUICK' };
+            break;
+          default:
+            // Use default request data
+        }
+      }
+      
       const response = await this.makeRequest(
         'vulnerability',
-        'scan',
-        { target: url, options },
+        requestPath,
+        requestData,
         '/api/vulnerability-scan'
       );
       
@@ -176,10 +298,37 @@ class ScannerApiService {
    */
   async scanNetwork(ipRange: string, scanMethod: string): Promise<any> {
     try {
+      // Different request paths for different network scanners
+      const provider = this.getApiProvider('network');
+      let requestPath = '/scan';
+      let requestData: any = { ipRange, scanMethod };
+      
+      // Adjust request based on provider
+      if (provider) {
+        switch(provider) {
+          case 'Shodan':
+            requestPath = '/shodan/host/search';
+            requestData = { query: `net:${ipRange}` };
+            break;
+          case 'SecurityTrails':
+            requestPath = '/domain/list';
+            // Convert CIDR to domain format
+            const domain = ipRange.split('/')[0].split('.').slice(0, 2).join('.');
+            requestData = { filter: { keyword: domain } };
+            break;
+          case 'Censys':
+            requestPath = '/hosts/search';
+            requestData = { q: `ip:${ipRange}` };
+            break;
+          default:
+            // Use default request data
+        }
+      }
+      
       const response = await this.makeRequest(
         'network',
-        'scan',
-        { ipRange, scanMethod },
+        requestPath,
+        requestData,
         '/api/network-scan'
       );
       
@@ -197,12 +346,51 @@ class ScannerApiService {
   /**
    * Scan ports on a target
    */
-  async scanPorts(target: string, portRange: string, scanType: string): Promise<any> {
+  async scanPorts(target: string, portRange: string, scanType: string, enableIDS: boolean = false): Promise<any> {
     try {
+      // Different request paths for different port scanners
+      const provider = this.getApiProvider('port');
+      let requestPath = '/scan';
+      let requestData: any = { target, portRange, scanType, enableIDS };
+      
+      // Adjust request based on provider
+      if (provider) {
+        switch(provider) {
+          case 'Nmap API':
+            requestPath = '/scan';
+            requestData = { 
+              target, 
+              ports: portRange,
+              scanType: scanType,
+              options: enableIDS ? { idsScan: true } : {} 
+            };
+            break;
+          case 'OpenVAS':
+            requestPath = '/tasks';
+            requestData = { 
+              target_id: target,
+              scanner_id: '08b69003-5fc2-4037-a479-93b440211c73',
+              config_id: enableIDS ? 'daba56c8-73ec-11df-a475-002264764cea' : '698f691e-7489-11df-9d8c-002264764cea'
+            };
+            break;
+          case 'Qualys':
+            requestPath = '/api/2.0/fo/scan';
+            requestData = { 
+              action: 'launch',
+              ip: target,
+              port_range: portRange,
+              option_id: enableIDS ? '5' : '2'
+            };
+            break;
+          default:
+            // Use default request data
+        }
+      }
+      
       const response = await this.makeRequest(
         'port',
-        'scan',
-        { target, portRange, scanType },
+        requestPath,
+        requestData,
         '/api/port-scan'
       );
       
@@ -220,12 +408,43 @@ class ScannerApiService {
   /**
    * Analyze network traffic
    */
-  async analyzeTraffic(interface_: string, filter: string, duration: number): Promise<any> {
+  async analyzeTraffic(interface_: string, filter: string, duration: number, format: string = 'live'): Promise<any> {
     try {
+      // Different request paths for different traffic analyzers
+      const provider = this.getApiProvider('traffic');
+      let requestPath = '/capture';
+      let requestData: any = { interface: interface_, filter, duration, format };
+      
+      // Adjust request based on provider
+      if (provider) {
+        switch(provider) {
+          case 'NetworkMiner':
+            requestPath = '/capture/start';
+            requestData = { 
+              interfaceName: interface_,
+              captureFilter: filter,
+              maxDuration: duration,
+              outputFormat: format
+            };
+            break;
+          case 'Wireshark API':
+            requestPath = '/capture';
+            requestData = { 
+              interface: interface_,
+              filter,
+              duration,
+              format
+            };
+            break;
+          default:
+            // Use default request data
+        }
+      }
+      
       const response = await this.makeRequest(
         'traffic',
-        'capture',
-        { interface: interface_, filter, duration },
+        requestPath,
+        requestData,
         '/api/traffic-analyze'
       );
       
@@ -243,3 +462,4 @@ class ScannerApiService {
 
 // Export as singleton
 export const scannerApi = new ScannerApiService();
+
