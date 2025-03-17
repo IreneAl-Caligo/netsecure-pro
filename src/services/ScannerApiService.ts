@@ -8,6 +8,8 @@ export interface ApiConfig {
   baseUrl?: string;
 }
 
+export type ScannerType = 'vulnerability' | 'network' | 'port' | 'traffic';
+
 class ScannerApiService {
   private baseUrls = {
     vulnerability: 'https://api.security-scanner.example',
@@ -18,10 +20,25 @@ class ScannerApiService {
   
   private apiKeys: Record<string, string> = {};
 
+  constructor() {
+    // Load any saved API keys on initialization
+    this.loadApiKeysFromStorage();
+  }
+
+  private loadApiKeysFromStorage() {
+    const scannerTypes: ScannerType[] = ['vulnerability', 'network', 'port', 'traffic'];
+    scannerTypes.forEach(type => {
+      const savedKey = localStorage.getItem(`scanner_api_key_${type}`);
+      if (savedKey) {
+        this.apiKeys[type] = savedKey;
+      }
+    });
+  }
+
   /**
    * Set API key for a specific scanner type
    */
-  setApiKey(scannerType: 'vulnerability' | 'network' | 'port' | 'traffic', apiKey: string) {
+  setApiKey(scannerType: ScannerType, apiKey: string) {
     this.apiKeys[scannerType] = apiKey;
     // Store in localStorage for persistence
     localStorage.setItem(`scanner_api_key_${scannerType}`, apiKey);
@@ -31,7 +48,7 @@ class ScannerApiService {
   /**
    * Get API key for a specific scanner type
    */
-  getApiKey(scannerType: 'vulnerability' | 'network' | 'port' | 'traffic'): string {
+  getApiKey(scannerType: ScannerType): string {
     // Try to get from memory first
     let key = this.apiKeys[scannerType];
     
@@ -49,7 +66,7 @@ class ScannerApiService {
   /**
    * Clear API key for a specific scanner type
    */
-  clearApiKey(scannerType: 'vulnerability' | 'network' | 'port' | 'traffic') {
+  clearApiKey(scannerType: ScannerType) {
     delete this.apiKeys[scannerType];
     localStorage.removeItem(`scanner_api_key_${scannerType}`);
   }
@@ -57,7 +74,7 @@ class ScannerApiService {
   /**
    * Check if an API key is valid by making a test request
    */
-  async testApiKey(scannerType: 'vulnerability' | 'network' | 'port' | 'traffic', apiKey: string): Promise<boolean> {
+  async testApiKey(scannerType: ScannerType, apiKey: string): Promise<boolean> {
     try {
       const baseUrl = this.baseUrls[scannerType];
       const response = await fetch(`${baseUrl}/verify-key`, {
@@ -79,7 +96,7 @@ class ScannerApiService {
   /**
    * Get headers with API key if available
    */
-  private getHeaders(scannerType: 'vulnerability' | 'network' | 'port' | 'traffic'): HeadersInit {
+  private getHeaders(scannerType: ScannerType): HeadersInit {
     const headers: HeadersInit = {
       'Content-Type': 'application/json'
     };
@@ -96,7 +113,7 @@ class ScannerApiService {
    * Make a scan request to our backend API first, then to external API if that fails
    */
   async makeRequest(
-    scannerType: 'vulnerability' | 'network' | 'port' | 'traffic',
+    scannerType: ScannerType,
     endpoint: string,
     data: any,
     backendPath?: string
@@ -129,6 +146,98 @@ class ScannerApiService {
       headers,
       body: JSON.stringify(data)
     });
+  }
+
+  /**
+   * Get real-time vulnerability data for a URL
+   */
+  async scanForVulnerabilities(url: string, options: any = {}): Promise<any> {
+    try {
+      const response = await this.makeRequest(
+        'vulnerability',
+        'scan',
+        { target: url, options },
+        '/api/vulnerability-scan'
+      );
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      throw new Error('Failed to scan for vulnerabilities');
+    } catch (error) {
+      console.error('Vulnerability scan error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Perform network scan to discover devices
+   */
+  async scanNetwork(ipRange: string, scanMethod: string): Promise<any> {
+    try {
+      const response = await this.makeRequest(
+        'network',
+        'scan',
+        { ipRange, scanMethod },
+        '/api/network-scan'
+      );
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      throw new Error('Failed to scan network');
+    } catch (error) {
+      console.error('Network scan error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Scan ports on a target
+   */
+  async scanPorts(target: string, portRange: string, scanType: string): Promise<any> {
+    try {
+      const response = await this.makeRequest(
+        'port',
+        'scan',
+        { target, portRange, scanType },
+        '/api/port-scan'
+      );
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      throw new Error('Failed to scan ports');
+    } catch (error) {
+      console.error('Port scan error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Analyze network traffic
+   */
+  async analyzeTraffic(interface_: string, filter: string, duration: number): Promise<any> {
+    try {
+      const response = await this.makeRequest(
+        'traffic',
+        'capture',
+        { interface: interface_, filter, duration },
+        '/api/traffic-analyze'
+      );
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      throw new Error('Failed to analyze traffic');
+    } catch (error) {
+      console.error('Traffic analysis error:', error);
+      throw error;
+    }
   }
 }
 

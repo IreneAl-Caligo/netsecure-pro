@@ -7,55 +7,20 @@ import { scannerApi } from "../services/ScannerApiService";
  */
 export async function handleNetworkScan(ipRange: string, scanMethod: string) {
   try {
-    // First try to call our own backend if it existed
-    try {
-      const response = await fetch('/api/network-scan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ipRange, scanMethod })
-      });
-      
-      if (response.ok) {
-        return await response.json();
-      }
-    } catch (e) {
-      console.log("Backend API not available");
-    }
-    
-    // Try external API service
-    const apiKey = scannerApi.getApiKey('network');
-    if (apiKey) {
-      try {
-        const response = await fetch(`https://api.networkscan.io/scan`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({ ipRange, scanMethod })
-        });
-        
-        if (response.ok) {
-          return await response.json();
-        }
-      } catch (e) {
-        console.error("External network scan API error:", e);
-      }
-    }
-    
-    // If all remote APIs fail, perform browser-based detection as best as possible
-    return await performBrowserNetworkDetection(ipRange);
+    // Use our scanner API service to handle the network scan
+    return await scannerApi.scanNetwork(ipRange, scanMethod);
   } catch (error) {
     console.error("Network scan error:", error);
-    throw error;
+    
+    // If API scan fails, try browser-based detection as a fallback
+    return await performBrowserNetworkDetection(ipRange);
   }
 }
 
 /**
  * Use browser APIs to attempt to detect network information
  * Note: This has serious limitations due to browser security restrictions
+ * This is only used as a fallback when API scanning is not available
  */
 async function performBrowserNetworkDetection(ipRange: string) {
   // Use WebRTC to try and get local IP
@@ -108,7 +73,7 @@ async function performBrowserNetworkDetection(ipRange: string) {
                 resolve({ 
                   success: true, 
                   devices,
-                  message: "Browser-based network detection has significant limitations. For accurate network scanning, consider using a dedicated tool like Nmap or a professional network scanning service."
+                  message: "Browser-based network detection completed. For more accurate results, please use a dedicated scanning tool with proper API access."
                 });
               }
             }
@@ -121,7 +86,7 @@ async function performBrowserNetworkDetection(ipRange: string) {
         if (!localIP) {
           resolve({ 
             success: false, 
-            error: "Could not determine local IP address" 
+            error: "Could not determine local IP address. Please ensure you have proper permissions and API keys configured." 
           });
         }
       }, 5000);
@@ -129,7 +94,7 @@ async function performBrowserNetworkDetection(ipRange: string) {
       console.error("WebRTC error:", error);
       resolve({ 
         success: false, 
-        error: "WebRTC error: Could not determine local network information" 
+        error: "WebRTC error: Could not determine local network information. Please ensure you have proper permissions and API keys configured." 
       });
     }
   });
