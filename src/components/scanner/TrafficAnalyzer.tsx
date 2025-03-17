@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from "react";
-import { Activity, RadioTower, Zap, AlertCircle, FileDown } from "lucide-react";
+import { Activity, RadioTower, Zap, AlertCircle, FileDown, Wifi } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +8,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { trafficAnalyzerAPIs } from "@/config/scannerConfig";
+import { scannerApi } from "@/services/ScannerApiService";
 
 interface NetworkInterface {
   name: string;
@@ -33,7 +34,11 @@ interface TrafficStats {
   trafficOverTime: {time: string; bytes: number}[];
 }
 
-export function TrafficAnalyzer() {
+interface TrafficAnalyzerProps {
+  hasApiKey?: boolean;
+}
+
+export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
   const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
   const [selectedInterface, setSelectedInterface] = useState("");
   const [capturing, setCapturing] = useState(false);
@@ -48,10 +53,13 @@ export function TrafficAnalyzer() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Get available network interfaces
+    const savedKey = scannerApi.getApiKey('traffic');
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
+    
     const getInterfaces = async () => {
       try {
-        // Try to get interfaces from our API endpoint
         try {
           const response = await fetch('/api/network-interfaces');
           if (response.ok) {
@@ -65,7 +73,6 @@ export function TrafficAnalyzer() {
           console.log("Backend API not available, trying alternative methods");
         }
         
-        // Try to use WebRTC to get local IP address
         const pc = new RTCPeerConnection({
           iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
         });
@@ -80,7 +87,6 @@ export function TrafficAnalyzer() {
                 const parts = line.split(' ');
                 const addr = parts[4];
                 if (addr.indexOf('.') !== -1) {
-                  // We found a local IP address, try to get interface info
                   fetch(`https://api.network-tools.example/interfaces?ip=${addr}`, {
                     headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}
                   })
@@ -89,7 +95,6 @@ export function TrafficAnalyzer() {
                     if (data.interfaces && Array.isArray(data.interfaces)) {
                       setInterfaces(data.interfaces);
                     } else {
-                      // If that fails, create reasonable defaults based on common network interfaces
                       setInterfaces([
                         { name: "eth0", description: "Ethernet Adapter" },
                         { name: "wlan0", description: "Wireless Adapter" },
@@ -112,7 +117,6 @@ export function TrafficAnalyzer() {
         });
       } catch (err) {
         console.error('Error detecting network interfaces:', err);
-        // Fallback to default interfaces
         setInterfaces([
           { name: "eth0", description: "Ethernet Adapter" },
           { name: "wlan0", description: "Wireless Adapter" },
@@ -155,9 +159,7 @@ export function TrafficAnalyzer() {
         setCaptureTime(prev => prev + 1);
       }, 1000);
 
-      // Try to connect to a real packet capture API or service
       try {
-        // First, try our backend API
         let response;
         try {
           response = await fetch(`/api/capture-traffic`, {
@@ -174,7 +176,6 @@ export function TrafficAnalyzer() {
           console.log("Backend API not available, trying external services");
         }
         
-        // If our API failed or doesn't exist, try an external packet capture service
         if (!response || !response.ok) {
           const headers: HeadersInit = {
             'Content-Type': 'application/json',
@@ -190,12 +191,11 @@ export function TrafficAnalyzer() {
             body: JSON.stringify({
               interface: selectedInterface,
               format: captureFormat,
-              duration: 300 // 5 minutes max
+              duration: 300
             })
           });
         }
         
-        // If we got a successful response from any API, process it
         if (response && response.ok) {
           const reader = response.body?.getReader();
           
@@ -229,7 +229,6 @@ export function TrafficAnalyzer() {
         console.error('API Error:', apiError);
         setCaptureError("Real-time traffic capture requires special permissions or extensions. Showing simulated traffic for educational purposes.");
         
-        // Simulate packet capture with realistic network data
         packetGeneratorInterval = setInterval(() => {
           if (!capturing) {
             if (packetGeneratorInterval) {
@@ -323,7 +322,6 @@ export function TrafficAnalyzer() {
         }, 200);
       }
       
-      // Set a maximum capture time of 5 minutes
       setTimeout(() => {
         if (capturing) {
           stopCapture();
@@ -433,7 +431,6 @@ export function TrafficAnalyzer() {
       packets: packets
     };
     
-    // Try to use the download API if available
     try {
       fetch('/api/download-capture', {
         method: 'POST',
@@ -465,7 +462,6 @@ export function TrafficAnalyzer() {
       })
       .catch(err => {
         console.error("Download API error:", err);
-        // Fallback to JSON download
         fallbackDownload();
       });
     } catch (e) {
@@ -491,6 +487,15 @@ export function TrafficAnalyzer() {
     }
   };
 
+  const handleSaveApiKey = (newApiKey: string) => {
+    setApiKey(newApiKey);
+    scannerApi.setApiKey('traffic', newApiKey);
+    toast({
+      title: "API Key Saved",
+      description: "Traffic analyzer API key has been saved",
+    });
+  };
+
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A569BD', '#5DADE2', '#45B39D', '#F5B041'];
 
   return (
@@ -507,12 +512,13 @@ export function TrafficAnalyzer() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <label htmlFor="interface-select" className="text-sm font-medium">Network Interface</label>
             <Select 
               onValueChange={setSelectedInterface} 
               value={selectedInterface} 
               disabled={capturing}
             >
-              <SelectTrigger className="border-border/50 focus:border-primary">
+              <SelectTrigger id="interface-select" className="border-border/50 focus:border-primary">
                 <SelectValue placeholder="Select interface" />
               </SelectTrigger>
               <SelectContent>
@@ -570,7 +576,7 @@ export function TrafficAnalyzer() {
           
           {showApiKey && (
             <div className="p-3 border border-border/50 rounded-md space-y-2 bg-background/50">
-              <label htmlFor="capture-api-key" className="text-sm">API Key (Optional)</label>
+              <label htmlFor="capture-api-key" className="text-sm">API Key (Required for real traffic data)</label>
               <Input
                 id="capture-api-key"
                 type="password"
@@ -580,10 +586,19 @@ export function TrafficAnalyzer() {
                 className="text-sm"
                 disabled={capturing}
               />
-              <p className="text-xs text-muted-foreground">
-                Using an API key from a packet capture service will provide real traffic data.
-                Without a key, simulated traffic may be shown due to browser limitations.
-              </p>
+              <div className="flex items-center gap-2 mt-2">
+                <Button
+                  size="sm"
+                  onClick={() => handleSaveApiKey(apiKey)}
+                  disabled={!apiKey || capturing}
+                  variant="outline"
+                >
+                  Save Key
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  API key required from services like {trafficAnalyzerAPIs.map(api => api.name).join(', ')}
+                </p>
+              </div>
             </div>
           )}
           
@@ -805,3 +820,4 @@ export function TrafficAnalyzer() {
     </div>
   );
 }
+

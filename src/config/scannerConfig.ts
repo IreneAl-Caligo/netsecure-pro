@@ -24,7 +24,9 @@ export const networkScannerAPIs = [
 export const trafficAnalyzerAPIs = [
   { name: "NetworkMiner", url: "https://api.networkminer.example" },
   { name: "Wireshark API", url: "https://api.wireshark.example" },
-  { name: "Packet Analyzer", url: "https://api.packetanalyzer.example" }
+  { name: "Packet Analyzer", url: "https://api.packetanalyzer.example" },
+  { name: "TCPDump API", url: "https://api.tcpdump.example" },
+  { name: "Zeek", url: "https://api.zeek.example" }
 ];
 
 // Port Scanner & IDS API options
