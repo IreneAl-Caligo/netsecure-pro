@@ -1,11 +1,12 @@
 
 import { useState } from "react";
-import { Shield, Wifi, Activity, Layers } from "lucide-react";
+import { Shield, Wifi, Activity, Layers, Settings } from "lucide-react";
 import { ScannerCard } from "@/components/scanner/ScannerCard";
 import { WebVulnerabilityScanner } from "@/components/scanner/WebVulnerabilityScanner";
 import { NetworkScanner } from "@/components/scanner/NetworkScanner";
 import { TrafficAnalyzer } from "@/components/scanner/TrafficAnalyzer";
 import { PortScanner } from "@/components/scanner/PortScanner";
+import { ApiSettingsView } from "@/components/scanner/ApiSettingsView";
 
 interface DashboardProps {
   apiKeysConfigured?: {
@@ -14,6 +15,11 @@ interface DashboardProps {
     port: boolean;
     traffic: boolean;
   };
+}
+
+// Define the props for each scanner component
+interface ScannerComponentProps {
+  hasApiKey?: boolean;
 }
 
 export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
@@ -47,6 +53,13 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
       description: "Scan for open ports on target systems",
       icon: <Layers className="h-5 w-5" />,
       component: <PortScanner hasApiKey={apiKeysConfigured?.port} />
+    },
+    {
+      id: "api-settings",
+      title: "API Settings",
+      description: "Configure security scanning APIs",
+      icon: <Settings className="h-5 w-5" />,
+      component: <ApiSettingsView />
     }
   ];
   
@@ -64,7 +77,7 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {scanners.map((scanner) => (
+            {scanners.slice(0, 4).map((scanner) => (
               <ScannerCard
                 key={scanner.id}
                 title={scanner.title}
@@ -74,6 +87,16 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
                 className="animate-scale-in"
               />
             ))}
+          </div>
+          
+          <div className="flex justify-center mt-4">
+            <button 
+              onClick={() => setActiveScanner('api-settings')}
+              className="flex items-center space-x-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Settings className="h-4 w-4" />
+              <span>Configure API Settings</span>
+            </button>
           </div>
         </div>
       ) : (

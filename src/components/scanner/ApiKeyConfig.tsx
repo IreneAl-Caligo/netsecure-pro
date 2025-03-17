@@ -119,7 +119,7 @@ export function ApiKeyConfig({ scannerType, isVisible, onDone }: ApiKeyConfigPro
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span>API Configuration</span>
-          <Badge variant={keyStatus === "valid" ? "success" : "outline"}>
+          <Badge variant={keyStatus === "valid" ? "secondary" : "outline"}>
             {keyStatus === "valid" ? (
               <>
                 <CheckCircle className="h-3 w-3 mr-1" />
