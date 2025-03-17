@@ -73,48 +73,38 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
           console.log("Backend API not available, trying alternative methods");
         }
         
-        const pc = new RTCPeerConnection({
-          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
+        setInterfaces([
+          { name: "eth0", description: "Ethernet Adapter" },
+          { name: "wlan0", description: "Wireless Adapter" },
+          { name: "lo", description: "Loopback Interface" }
+        ]);
         
-        pc.createDataChannel('');
-        pc.createOffer().then(offer => pc.setLocalDescription(offer));
-        
-        pc.addEventListener('icegatheringstatechange', () => {
-          if (pc.iceGatheringState === 'complete') {
-            pc.localDescription?.sdp.split('\n').forEach(line => {
-              if (line.indexOf('a=candidate:') === 0) {
-                const parts = line.split(' ');
-                const addr = parts[4];
-                if (addr.indexOf('.') !== -1) {
-                  fetch(`https://api.network-tools.example/interfaces?ip=${addr}`, {
-                    headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}
-                  })
-                  .then(response => response.json())
-                  .then(data => {
-                    if (data.interfaces && Array.isArray(data.interfaces)) {
-                      setInterfaces(data.interfaces);
-                    } else {
-                      setInterfaces([
-                        { name: "eth0", description: "Ethernet Adapter" },
-                        { name: "wlan0", description: "Wireless Adapter" },
-                        { name: "lo", description: "Loopback Interface" }
-                      ]);
+        try {
+          const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+          });
+          
+          pc.createDataChannel('');
+          await pc.createOffer().then(offer => pc.setLocalDescription(offer));
+          
+          pc.addEventListener('icegatheringstatechange', () => {
+            if (pc.iceGatheringState === 'complete') {
+              if (pc.localDescription?.sdp) {
+                pc.localDescription.sdp.split('\n').forEach(line => {
+                  if (line.indexOf('a=candidate:') === 0) {
+                    const parts = line.split(' ');
+                    const addr = parts[4];
+                    if (addr.indexOf('.') !== -1) {
+                      console.log(`Found local IP: ${addr}`);
                     }
-                  })
-                  .catch(err => {
-                    console.error("Error fetching interfaces:", err);
-                    setInterfaces([
-                      { name: "eth0", description: "Ethernet Adapter" },
-                      { name: "wlan0", description: "Wireless Adapter" },
-                      { name: "lo", description: "Loopback Interface" }
-                    ]);
-                  });
-                }
+                  }
+                });
               }
-            });
-          }
-        });
+            }
+          });
+        } catch (err) {
+          console.error('Error detecting network interfaces with WebRTC:', err);
+        }
       } catch (err) {
         console.error('Error detecting network interfaces:', err);
         setInterfaces([
@@ -820,4 +810,3 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
     </div>
   );
 }
-
