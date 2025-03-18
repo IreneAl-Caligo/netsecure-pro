@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Shield, Wifi, Activity, Layers, Settings } from "lucide-react";
 import { ScannerCard } from "@/components/scanner/ScannerCard";
@@ -7,6 +8,7 @@ import { TrafficAnalyzer } from "@/components/scanner/TrafficAnalyzer";
 import { PortScanner } from "@/components/scanner/PortScanner";
 import { ApiSettingsView } from "@/components/scanner/ApiSettingsView";
 import { scannerApi } from "@/services/ScannerApiService";
+import { Button } from "@/components/ui/button";
 import type { ScannerType } from "@/services/ScannerApiService";
 
 interface DashboardProps {
@@ -69,13 +71,24 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
     <div className="container mx-auto px-4 py-10 max-w-7xl transition-all duration-500">
       {!activeScanner ? (
         <div className="space-y-10 animate-fade-in">
-          <div className="text-center space-y-4">
-            <h1 className="text-4xl font-bold tracking-tight">
+          <div className="relative flex flex-col items-center">
+            <h1 className="text-4xl font-bold tracking-tight mb-4">
               Netsecure Pro
             </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-lg text-muted-foreground max-w-2xl text-center">
               Advanced security tools for network monitoring and vulnerability assessment
             </p>
+            
+            {/* API Settings Button positioned absolutely top right */}
+            <Button 
+              onClick={() => setActiveScanner('api-settings')}
+              variant="outline"
+              size="sm"
+              className="absolute right-0 -top-2 flex items-center gap-1.5 border border-primary/20 bg-background/70 backdrop-blur-sm hover:bg-primary/10 transition-all shadow-sm"
+            >
+              <Settings className="h-4 w-4 text-primary" />
+              <span className="font-medium">API Settings</span>
+            </Button>
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -89,16 +102,6 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
                 className="animate-scale-in"
               />
             ))}
-          </div>
-          
-          <div className="flex justify-center mt-4">
-            <button 
-              onClick={() => setActiveScanner('api-settings')}
-              className="flex items-center space-x-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-            >
-              <Settings className="h-4 w-4" />
-              <span>Configure API Settings</span>
-            </button>
           </div>
         </div>
       ) : (
