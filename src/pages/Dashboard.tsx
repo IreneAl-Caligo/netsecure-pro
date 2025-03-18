@@ -1,6 +1,5 @@
-
 import { useState } from "react";
-import { Shield, Wifi, Activity, Layers, Settings } from "lucide-react";
+import { Shield, Wifi, Activity, Layers } from "lucide-react";
 import { ScannerCard } from "@/components/scanner/ScannerCard";
 import { WebVulnerabilityScanner } from "@/components/scanner/WebVulnerabilityScanner";
 import { NetworkScanner } from "@/components/scanner/NetworkScanner";
@@ -57,13 +56,6 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
       description: "Scan for open ports on target systems",
       icon: <Layers className="h-5 w-5" />,
       component: <PortScanner />
-    },
-    {
-      id: "api-settings",
-      title: "API Settings",
-      description: "Configure security scanning APIs",
-      icon: <Settings className="h-5 w-5" />,
-      component: <ApiSettingsView />
     }
   ];
   
@@ -86,7 +78,7 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {scanners.slice(0, 4).map((scanner) => (
+              {scanners.map((scanner) => (
                 <ScannerCard
                   key={scanner.id}
                   title={scanner.title}
@@ -121,7 +113,8 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
               Back to dashboard
             </button>
             
-            {scanners.find(scanner => scanner.id === activeScanner)?.component}
+            {activeScanner === 'api-settings' ? <ApiSettingsView /> : 
+             scanners.find(scanner => scanner.id === activeScanner)?.component}
           </div>
         )}
       </div>
