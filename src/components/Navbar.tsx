@@ -19,18 +19,23 @@ export function Navbar({ onApiSettingsClick, showApiSettings = true }: NavbarPro
               Netsecure Pro
             </span>
           </div>
-          <div className="flex items-center space-x-4">
-            {showApiSettings && onApiSettingsClick && (
+          
+          {/* API Settings Button in center */}
+          {showApiSettings && onApiSettingsClick && (
+            <div className="absolute left-1/2 transform -translate-x-1/2">
               <Button 
                 onClick={onApiSettingsClick}
-                variant="ghost" 
+                variant="outline" 
                 size="sm"
-                className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors"
+                className="flex items-center gap-1.5 border border-primary/20 bg-background/70 backdrop-blur-sm hover:bg-primary/10 transition-all shadow-sm"
               >
-                <Settings className="h-4 w-4" />
+                <Settings className="h-4 w-4 text-primary" />
                 <span className="font-medium">API Settings</span>
               </Button>
-            )}
+            </div>
+          )}
+          
+          <div className="flex items-center space-x-4">
             <ThemeToggle />
           </div>
         </div>
