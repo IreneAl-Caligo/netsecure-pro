@@ -7,6 +7,7 @@ import { NetworkScanner } from "@/components/scanner/NetworkScanner";
 import { TrafficAnalyzer } from "@/components/scanner/TrafficAnalyzer";
 import { PortScanner } from "@/components/scanner/PortScanner";
 import { ApiSettingsView } from "@/components/scanner/ApiSettingsView";
+import { scannerApi } from "@/services/ScannerApiService";
 
 interface DashboardProps {
   apiKeysConfigured?: {
@@ -25,34 +26,40 @@ interface ScannerComponentProps {
 export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
   const [activeScanner, setActiveScanner] = useState<string | null>(null);
   
+  // Check if we have API keys configured for each scanner type
+  const vulnerabilityKey = scannerApi.getApiKey('vulnerability');
+  const networkKey = scannerApi.getApiKey('network');
+  const portKey = scannerApi.getApiKey('port');
+  const trafficKey = scannerApi.getApiKey('traffic');
+  
   const scanners = [
     {
       id: "web-vulnerability",
       title: "Web Vulnerability Scanner",
       description: "Scan websites for security vulnerabilities",
       icon: <Shield className="h-5 w-5" />,
-      component: <WebVulnerabilityScanner hasApiKey={apiKeysConfigured?.vulnerability} />
+      component: <WebVulnerabilityScanner hasApiKey={!!vulnerabilityKey} />
     },
     {
       id: "network-scanner",
       title: "Network Scanner",
       description: "Discover devices on your network",
       icon: <Wifi className="h-5 w-5" />,
-      component: <NetworkScanner hasApiKey={apiKeysConfigured?.network} />
+      component: <NetworkScanner hasApiKey={!!networkKey} />
     },
     {
       id: "traffic-analyzer",
       title: "Traffic Analyzer",
       description: "Analyze network traffic and packet data",
       icon: <Activity className="h-5 w-5" />,
-      component: <TrafficAnalyzer hasApiKey={apiKeysConfigured?.traffic} />
+      component: <TrafficAnalyzer hasApiKey={!!trafficKey} />
     },
     {
       id: "port-scanner",
       title: "Port Scanner",
       description: "Scan for open ports on target systems",
       icon: <Layers className="h-5 w-5" />,
-      component: <PortScanner hasApiKey={apiKeysConfigured?.port} />
+      component: <PortScanner hasApiKey={!!portKey} />
     },
     {
       id: "api-settings",

@@ -36,15 +36,27 @@ export function ApiKeyConfig({ scannerType, isVisible, onDone }: ApiKeyConfigPro
       }
       if (savedProvider) {
         setApiProvider(savedProvider);
+      } else if (providers.length > 0) {
+        // If no provider is selected but we have options, select the first one by default
+        setApiProvider(providers[0].name);
       }
     }
-  }, [isVisible, scannerType]);
+  }, [isVisible, scannerType, providers]);
 
   const handleSaveApiKey = async () => {
     if (!apiKey) {
       toast({
         title: "Error",
         description: "Please enter an API key",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!apiProvider) {
+      toast({
+        title: "Error",
+        description: "Please select an API provider",
         variant: "destructive",
       });
       return;
@@ -63,7 +75,7 @@ export function ApiKeyConfig({ scannerType, isVisible, onDone }: ApiKeyConfigPro
         setKeyStatus("valid");
         toast({
           title: "Success",
-          description: `API key for ${scannerType} scanner saved successfully`,
+          description: `API key for ${apiProvider} saved successfully`,
         });
         if (onDone) {
           onDone();
@@ -154,6 +166,9 @@ export function ApiKeyConfig({ scannerType, isVisible, onDone }: ApiKeyConfigPro
               ))}
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground">
+            Choose which service provider to use for {scannerType} scanning
+          </p>
         </div>
         
         <div className="space-y-2">
