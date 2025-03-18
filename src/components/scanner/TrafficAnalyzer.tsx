@@ -8,7 +8,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { trafficAnalyzerAPIs } from "@/config/scannerConfig";
 import { scannerApi } from "@/services/ScannerApiService";
 
 interface NetworkInterface {
@@ -49,14 +48,33 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
   const [captureFormat, setCaptureFormat] = useState<"live" | "pcap">("live");
   const [progress, setProgress] = useState(0);
   const [apiKey, setApiKey] = useState("");
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState("");
+  const [showApiSettings, setShowApiSettings] = useState(false);
   const { toast } = useToast();
+
+  const apiProviders = scannerApi.getProvidersByType('traffic');
 
   useEffect(() => {
     const savedKey = scannerApi.getApiKey('traffic');
+    const savedProvider = scannerApi.getApiProvider('traffic');
+    
     if (savedKey) {
       setApiKey(savedKey);
     }
+    
+    if (savedProvider) {
+      setSelectedProvider(savedProvider);
+    } else if (apiProviders.length > 0) {
+      setSelectedProvider(apiProviders[0].name);
+    }
+    
+    const mockInterfaces = [
+      { name: "eth0", description: "Ethernet Adapter" },
+      { name: "wlan0", description: "Wireless Adapter" },
+      { name: "lo", description: "Loopback Interface" }
+    ];
+    
+    setInterfaces(mockInterfaces);
     
     const getInterfaces = async () => {
       try {
@@ -70,14 +88,8 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
             }
           }
         } catch (e) {
-          console.log("Backend API not available, trying alternative methods");
+          console.log("Backend API not available, using mock interfaces");
         }
-        
-        setInterfaces([
-          { name: "eth0", description: "Ethernet Adapter" },
-          { name: "wlan0", description: "Wireless Adapter" },
-          { name: "lo", description: "Loopback Interface" }
-        ]);
         
         try {
           const pc = new RTCPeerConnection({
@@ -107,17 +119,21 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
         }
       } catch (err) {
         console.error('Error detecting network interfaces:', err);
-        setInterfaces([
-          { name: "eth0", description: "Ethernet Adapter" },
-          { name: "wlan0", description: "Wireless Adapter" },
-          { name: "lo", description: "Loopback Interface" }
-        ]);
         setCaptureError("Traffic analysis requires special permissions or a dedicated packet capture tool. Browsers can't directly access network interfaces for security reasons.");
       }
     };
     
     getInterfaces();
-  }, [apiKey]);
+  }, []);
+
+  const handleSaveApiSettings = () => {
+    scannerApi.setApiKey('traffic', apiKey, selectedProvider);
+    setShowApiSettings(false);
+    toast({
+      title: "API Settings Saved",
+      description: `Traffic analyzer now using ${selectedProvider} API`,
+    });
+  };
 
   const startCapture = async () => {
     if (!selectedInterface) {
@@ -477,15 +493,6 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
     }
   };
 
-  const handleSaveApiKey = (newApiKey: string) => {
-    setApiKey(newApiKey);
-    scannerApi.setApiKey('traffic', newApiKey);
-    toast({
-      title: "API Key Saved",
-      description: "Traffic analyzer API key has been saved",
-    });
-  };
-
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A569BD', '#5DADE2', '#45B39D', '#F5B041'];
 
   return (
@@ -495,141 +502,172 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
         <h2 className="text-2xl font-bold">Network Traffic Analyzer</h2>
       </div>
       
-      <Card className="backdrop-blur-sm bg-card/80 border-border/50">
-        <CardHeader>
-          <CardTitle>Capture Configuration</CardTitle>
-          <CardDescription>Select a network interface to capture packets</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="interface-select" className="text-sm font-medium">Network Interface</label>
-            <Select 
-              onValueChange={setSelectedInterface} 
-              value={selectedInterface} 
-              disabled={capturing}
-            >
-              <SelectTrigger id="interface-select" className="border-border/50 focus:border-primary">
-                <SelectValue placeholder="Select interface" />
-              </SelectTrigger>
-              <SelectContent>
-                {interfaces.map((iface) => (
-                  <SelectItem key={iface.name} value={iface.name}>
-                    {iface.name} ({iface.description})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="flex flex-col space-y-4 sm:flex-row sm:justify-between sm:space-y-0">
+      {showApiSettings ? (
+        <Card className="backdrop-blur-sm bg-card/80 border-border/50">
+          <CardHeader>
+            <CardTitle>API Configuration</CardTitle>
+            <CardDescription>Configure your traffic analyzer API provider</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Capture Format</label>
-              <div className="flex space-x-4">
-                <div className="flex items-center">
-                  <input
-                    type="radio"
-                    id="live"
-                    value="live"
-                    checked={captureFormat === "live"}
-                    onChange={() => setCaptureFormat("live")}
-                    disabled={capturing}
-                    className="mr-2"
-                  />
-                  <label htmlFor="live" className="text-sm">Live Capture</label>
+              <label htmlFor="api-provider" className="text-sm font-medium">API Provider</label>
+              <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                <SelectTrigger id="api-provider" className="w-full">
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {apiProviders.map((provider) => (
+                    <SelectItem key={provider.name} value={provider.name}>
+                      {provider.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <label htmlFor="traffic-api-key" className="text-sm font-medium">API Key</label>
+              <Input
+                id="traffic-api-key"
+                type="password"
+                placeholder="Enter your API key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                API key for {selectedProvider || "selected provider"} traffic analysis service
+              </p>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" onClick={() => setShowApiSettings(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveApiSettings}>
+              Save API Settings
+            </Button>
+          </CardFooter>
+        </Card>
+      ) : (
+        <Card className="backdrop-blur-sm bg-card/80 border-border/50">
+          <CardHeader>
+            <CardTitle>Capture Configuration</CardTitle>
+            <CardDescription>Select a network interface to capture packets</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="interface-select" className="text-sm font-medium">Network Interface</label>
+              <Select 
+                onValueChange={setSelectedInterface} 
+                value={selectedInterface} 
+                disabled={capturing}
+              >
+                <SelectTrigger id="interface-select" className="border-border/50 focus:border-primary">
+                  <SelectValue placeholder="Select interface" />
+                </SelectTrigger>
+                <SelectContent>
+                  {interfaces.map((iface) => (
+                    <SelectItem key={iface.name} value={iface.name}>
+                      {iface.name} ({iface.description})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex flex-col space-y-4 sm:flex-row sm:justify-between sm:space-y-0">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Capture Format</label>
+                <div className="flex space-x-4">
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      id="live"
+                      value="live"
+                      checked={captureFormat === "live"}
+                      onChange={() => setCaptureFormat("live")}
+                      disabled={capturing}
+                      className="mr-2"
+                    />
+                    <label htmlFor="live" className="text-sm">Live Capture</label>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      id="pcap"
+                      value="pcap"
+                      checked={captureFormat === "pcap"}
+                      onChange={() => setCaptureFormat("pcap")}
+                      disabled={capturing}
+                      className="mr-2"
+                    />
+                    <label htmlFor="pcap" className="text-sm">PCAP File</label>
+                  </div>
                 </div>
-                <div className="flex items-center">
-                  <input
-                    type="radio"
-                    id="pcap"
-                    value="pcap"
-                    checked={captureFormat === "pcap"}
-                    onChange={() => setCaptureFormat("pcap")}
-                    disabled={capturing}
-                    className="mr-2"
-                  />
-                  <label htmlFor="pcap" className="text-sm">PCAP File</label>
-                </div>
+              </div>
+              
+              <div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setShowApiSettings(true)}
+                >
+                  API Settings
+                </Button>
               </div>
             </div>
             
-            <div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="text-xs"
-                onClick={() => setShowApiKey(!showApiKey)}
-              >
-                {showApiKey ? "Hide API Options" : "API Options"}
-              </Button>
-            </div>
-          </div>
-          
-          {showApiKey && (
-            <div className="p-3 border border-border/50 rounded-md space-y-2 bg-background/50">
-              <label htmlFor="capture-api-key" className="text-sm">API Key (Required for real traffic data)</label>
-              <Input
-                id="capture-api-key"
-                type="password"
-                placeholder="Enter packet capture service API key"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="text-sm"
-                disabled={capturing}
-              />
-              <div className="flex items-center gap-2 mt-2">
-                <Button
-                  size="sm"
-                  onClick={() => handleSaveApiKey(apiKey)}
-                  disabled={!apiKey || capturing}
-                  variant="outline"
-                >
-                  Save Key
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  API key required from services like {trafficAnalyzerAPIs.map(api => api.name).join(', ')}
-                </p>
+            {apiKey ? (
+              <div className="text-sm px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-md">
+                Using {selectedProvider || "default"} API for traffic analysis
               </div>
-            </div>
-          )}
-          
-          {captureError && (
-            <div className="text-sm p-3 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-md">
-              <AlertCircle className="h-4 w-4 inline mr-2" />
-              {captureError}
-            </div>
-          )}
-          
-          {capturing && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Capturing packets...</span>
-                <span>Time: {captureTime}s</span>
+            ) : (
+              <div className="text-sm px-3 py-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-md">
+                <AlertCircle className="h-4 w-4 inline mr-2" />
+                No API key configured. Some features may be limited to simulated data.
               </div>
-              {progress > 0 && <Progress value={progress} className="h-2" />}
-            </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex flex-wrap gap-2">
-          <Button 
-            onClick={capturing ? stopCapture : startCapture}
-            className={capturing ? "bg-destructive hover:bg-destructive/90" : ""}
-            disabled={!selectedInterface}
-          >
-            {capturing ? "Stop Capture" : "Start Capture"}
-          </Button>
-          
-          {packets.length > 0 && (
+            )}
+            
+            {captureError && (
+              <div className="text-sm p-3 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-md">
+                <AlertCircle className="h-4 w-4 inline mr-2" />
+                {captureError}
+              </div>
+            )}
+            
+            {capturing && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Capturing packets...</span>
+                  <span>Time: {captureTime}s</span>
+                </div>
+                {progress > 0 && <Progress value={progress} className="h-2" />}
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="flex flex-wrap gap-2">
             <Button 
-              onClick={downloadCapture}
-              variant="outline"
-              className="flex items-center gap-1"
+              onClick={capturing ? stopCapture : startCapture}
+              className={capturing ? "bg-destructive hover:bg-destructive/90" : ""}
+              disabled={!selectedInterface}
             >
-              <FileDown className="h-4 w-4" />
-              Download Capture
+              {capturing ? "Stop Capture" : "Start Capture"}
             </Button>
-          )}
-        </CardFooter>
-      </Card>
+            
+            {packets.length > 0 && (
+              <Button 
+                onClick={downloadCapture}
+                variant="outline"
+                className="flex items-center gap-1"
+              >
+                <FileDown className="h-4 w-4" />
+                Download Capture
+              </Button>
+            )}
+          </CardFooter>
+        </Card>
+      )}
       
       {packets.length > 0 && (
         <>
@@ -810,3 +848,4 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
     </div>
   );
 }
+

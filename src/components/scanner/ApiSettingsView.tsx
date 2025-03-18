@@ -7,28 +7,29 @@ import { Button } from "@/components/ui/button";
 import { ApiKeyConfig } from "./ApiKeyConfig";
 import { scannerApi } from "@/services/ScannerApiService";
 import { CheckCircle, Settings, Key } from "lucide-react";
+import type { ScannerType } from "@/services/ScannerApiService";
 
 export function ApiSettingsView() {
-  const [activeTab, setActiveTab] = useState<string>("vulnerability");
-  const [showConfig, setShowConfig] = useState<Record<string, boolean>>({
+  const [activeTab, setActiveTab] = useState<ScannerType>("vulnerability");
+  const [showConfig, setShowConfig] = useState<Record<ScannerType, boolean>>({
     vulnerability: false,
     network: false,
     port: false,
     traffic: false
   });
 
-  const toggleConfig = (scannerType: string) => {
+  const toggleConfig = (scannerType: ScannerType) => {
     setShowConfig(prev => ({
       ...prev,
       [scannerType]: !prev[scannerType]
     }));
   };
 
-  const handleConfigDone = (scannerType: string) => {
+  const handleConfigDone = (scannerType: ScannerType) => {
     toggleConfig(scannerType);
   };
 
-  const getApiStatus = (scannerType: string) => {
+  const getApiStatus = (scannerType: ScannerType) => {
     const key = scannerApi.getApiKey(scannerType);
     const provider = scannerApi.getApiProvider(scannerType);
     return {
@@ -36,6 +37,8 @@ export function ApiSettingsView() {
       provider: provider
     };
   };
+
+  const scannerTypes: ScannerType[] = ["vulnerability", "network", "traffic", "port"];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -52,7 +55,7 @@ export function ApiSettingsView() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ScannerType)}>
             <TabsList className="grid grid-cols-4 mb-6">
               <TabsTrigger value="vulnerability">Vulnerability</TabsTrigger>
               <TabsTrigger value="network">Network</TabsTrigger>
@@ -60,13 +63,13 @@ export function ApiSettingsView() {
               <TabsTrigger value="port">Port</TabsTrigger>
             </TabsList>
 
-            {["vulnerability", "network", "traffic", "port"].map((scannerType) => {
+            {scannerTypes.map((scannerType) => {
               const { configured, provider } = getApiStatus(scannerType);
               return (
                 <TabsContent key={scannerType} value={scannerType} className="space-y-4">
                   {showConfig[scannerType] ? (
                     <ApiKeyConfig 
-                      scannerType={scannerType as any} 
+                      scannerType={scannerType} 
                       isVisible={true} 
                       onDone={() => handleConfigDone(scannerType)}
                     />
@@ -111,7 +114,7 @@ export function ApiSettingsView() {
                   <div className="text-sm space-y-2">
                     <h4 className="font-medium">Available API Providers:</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {scannerApi.getProvidersByType(scannerType as any).map((provider, index) => (
+                      {scannerApi.getProvidersByType(scannerType).map((provider, index) => (
                         <div key={index} className="p-3 border border-border/50 rounded-md bg-background/50">
                           <div className="font-medium">{provider.name}</div>
                           <div className="text-xs text-muted-foreground">

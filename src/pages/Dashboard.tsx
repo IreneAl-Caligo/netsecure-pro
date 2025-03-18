@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Shield, Wifi, Activity, Layers, Settings } from "lucide-react";
 import { ScannerCard } from "@/components/scanner/ScannerCard";
@@ -8,6 +7,7 @@ import { TrafficAnalyzer } from "@/components/scanner/TrafficAnalyzer";
 import { PortScanner } from "@/components/scanner/PortScanner";
 import { ApiSettingsView } from "@/components/scanner/ApiSettingsView";
 import { scannerApi } from "@/services/ScannerApiService";
+import type { ScannerType } from "@/services/ScannerApiService";
 
 interface DashboardProps {
   apiKeysConfigured?: {
@@ -16,11 +16,6 @@ interface DashboardProps {
     port: boolean;
     traffic: boolean;
   };
-}
-
-// Define the props for each scanner component
-interface ScannerComponentProps {
-  hasApiKey?: boolean;
 }
 
 export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
@@ -38,28 +33,28 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
       title: "Web Vulnerability Scanner",
       description: "Scan websites for security vulnerabilities",
       icon: <Shield className="h-5 w-5" />,
-      component: <WebVulnerabilityScanner hasApiKey={!!vulnerabilityKey} />
+      component: <WebVulnerabilityScanner />
     },
     {
       id: "network-scanner",
       title: "Network Scanner",
       description: "Discover devices on your network",
       icon: <Wifi className="h-5 w-5" />,
-      component: <NetworkScanner hasApiKey={!!networkKey} />
+      component: <NetworkScanner />
     },
     {
       id: "traffic-analyzer",
       title: "Traffic Analyzer",
       description: "Analyze network traffic and packet data",
       icon: <Activity className="h-5 w-5" />,
-      component: <TrafficAnalyzer hasApiKey={!!trafficKey} />
+      component: <TrafficAnalyzer />
     },
     {
       id: "port-scanner",
       title: "Port Scanner",
       description: "Scan for open ports on target systems",
       icon: <Layers className="h-5 w-5" />,
-      component: <PortScanner hasApiKey={!!portKey} />
+      component: <PortScanner />
     },
     {
       id: "api-settings",
