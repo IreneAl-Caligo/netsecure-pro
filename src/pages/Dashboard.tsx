@@ -64,7 +64,8 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
     <>
       <Navbar 
         onApiSettingsClick={() => setActiveScanner('api-settings')} 
-        showApiSettings={true} 
+        showApiSettings={true}
+        isApiSettingsActive={activeScanner === 'api-settings'}
       />
       <div className="container mx-auto px-4 py-8 max-w-7xl transition-all duration-500">
         {!activeScanner ? (
