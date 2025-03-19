@@ -37,12 +37,13 @@ export function Navbar({ onApiSettingsClick, showApiSettings = true }: NavbarPro
             )}
           </div>
           
-          {/* Theme toggle button on the right */}
+          {/* Theme toggle button on the right, without active/pressed state */}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             aria-label="Toggle theme"
+            className="hover:bg-transparent active:bg-transparent focus:bg-transparent"
           >
             {theme === "dark" ? (
               <Sun className="h-5 w-5" />

@@ -69,15 +69,6 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
       <div className="container mx-auto px-4 py-8 max-w-7xl transition-all duration-500">
         {!activeScanner ? (
           <div className="space-y-8 animate-fade-in">
-            <div className="flex flex-col items-center">
-              <h1 className="text-4xl font-bold tracking-tight mb-4">
-                Netsecure Pro
-              </h1>
-              <p className="text-lg text-muted-foreground max-w-2xl text-center">
-                Advanced security tools for network monitoring and vulnerability assessment
-              </p>
-            </div>
-            
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {scanners.map((scanner) => (
                 <ScannerCard
