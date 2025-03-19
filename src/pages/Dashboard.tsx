@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Shield, Wifi, Activity, Layers } from "lucide-react";
 import { ScannerCard } from "@/components/scanner/ScannerCard";
@@ -63,11 +64,11 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
     <>
       <Navbar 
         onApiSettingsClick={() => setActiveScanner('api-settings')} 
-        showApiSettings={!activeScanner} 
+        showApiSettings={true} 
       />
-      <div className="container mx-auto px-4 py-10 max-w-7xl transition-all duration-500">
+      <div className="container mx-auto px-4 py-8 max-w-7xl transition-all duration-500">
         {!activeScanner ? (
-          <div className="space-y-10 animate-fade-in">
+          <div className="space-y-8 animate-fade-in">
             <div className="flex flex-col items-center">
               <h1 className="text-4xl font-bold tracking-tight mb-4">
                 Netsecure Pro
