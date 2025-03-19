@@ -1,6 +1,7 @@
 
-import { Shield, Cog } from "lucide-react";
+import { Shield, Cog, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "@/providers/ThemeProvider";
 
 interface NavbarProps {
   onApiSettingsClick?: () => void;
@@ -8,29 +9,47 @@ interface NavbarProps {
 }
 
 export function Navbar({ onApiSettingsClick, showApiSettings = true }: NavbarProps) {
+  const { theme, setTheme } = useTheme();
+  
   return (
     <nav className="sticky top-0 z-50 w-full backdrop-blur-lg bg-background/80 border-b border-border shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center">
-          <div className="flex items-center gap-2">
-            <Shield className="h-8 w-8 text-primary" />
-            <span className="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
-              Netsecure Pro
-            </span>
+        <div className="flex h-16 items-center justify-between">
+          <div className="flex flex-col items-start">
+            <div className="flex items-center gap-2">
+              <Shield className="h-8 w-8 text-primary" />
+              <span className="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+                Netsecure Pro
+              </span>
+            </div>
             
-            {/* API Settings button positioned right next to Netsecure Pro */}
+            {/* API Settings positioned below Netsecure Pro */}
             {showApiSettings && onApiSettingsClick && (
               <Button 
                 onClick={onApiSettingsClick}
                 variant="ghost" 
                 size="sm"
-                className="ml-4 flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors"
+                className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors -mt-1"
               >
                 <Cog className="h-4 w-4" />
                 <span className="font-medium">API Settings</span>
               </Button>
             )}
           </div>
+          
+          {/* Theme toggle button on the right */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            aria-label="Toggle theme"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+          </Button>
         </div>
       </div>
     </nav>

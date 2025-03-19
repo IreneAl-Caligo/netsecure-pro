@@ -1,9 +1,23 @@
-// This file is kept as a placeholder but its functionality has been removed
-// as per the user's request to remove the theme toggle from the UI
 
+import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "@/providers/ThemeProvider";
 
 export function ThemeToggle() {
-  // Return an empty div as the component is not being used
-  return <></>;
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      aria-label="Toggle theme"
+    >
+      {theme === "dark" ? (
+        <Sun className="h-5 w-5" />
+      ) : (
+        <Moon className="h-5 w-5" />
+      )}
+    </Button>
+  );
 }
