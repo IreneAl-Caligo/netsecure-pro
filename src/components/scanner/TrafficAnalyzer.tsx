@@ -51,7 +51,6 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
   const [apiKey, setApiKey] = useState("");
   const [selectedProvider, setSelectedProvider] = useState("");
   const [showApiSettings, setShowApiSettings] = useState(false);
-  const [simulationMode, setSimulationMode] = useState(false);
   const { toast } = useToast();
 
   const apiProviders = scannerApi.getProvidersByType('traffic');
@@ -170,7 +169,6 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
       return;
     }
 
-    let packetGeneratorInterval: ReturnType<typeof setInterval> | null = null;
     let timerInterval: ReturnType<typeof setInterval> | null = null;
 
     try {
@@ -180,7 +178,6 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
       setPackets([]);
       setStats(null);
       setCaptureError(null);
-      setSimulationMode(false);
 
       toast({
         title: "Capture Started",
@@ -277,22 +274,17 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
         }
       } catch (apiError) {
         console.error('API Error:', apiError);
-        setSimulationMode(true);
-        setCaptureError("Using simulated traffic data for demonstration. Real traffic capture would require API access.");
-        
-        // Generate simulated traffic data
-        packetGeneratorInterval = setInterval(() => {
-          if (!capturing) {
-            if (packetGeneratorInterval) {
-              clearInterval(packetGeneratorInterval);
-              packetGeneratorInterval = null;
-            }
-            return;
-          }
-          
-          generateSimulatedPacket();
-          updateStats();
-        }, 200);
+        stopCapture();
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+        setCaptureError("Traffic capture interrupted");
+        toast({
+          title: "Capture Interrupted",
+          description: "Unable to capture network traffic",
+          variant: "destructive",
+        });
       }
       
       // Auto-stop after 5 minutes to prevent excessive resource usage
@@ -303,28 +295,20 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
             clearInterval(timerInterval);
             timerInterval = null;
           }
-          if (packetGeneratorInterval) {
-            clearInterval(packetGeneratorInterval);
-            packetGeneratorInterval = null;
-          }
         }
       }, 5 * 60 * 1000);
     } catch (err) {
       console.error("Error during traffic capture:", err);
-      setCaptureError("An unexpected error occurred during capture.");
+      setCaptureError("Traffic capture interrupted");
       toast({
-        title: "Error",
-        description: "An unexpected error occurred",
+        title: "Capture Interrupted",
+        description: "Unable to capture network traffic",
         variant: "destructive",
       });
       setCapturing(false);
       if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
-      }
-      if (packetGeneratorInterval) {
-        clearInterval(packetGeneratorInterval);
-        packetGeneratorInterval = null;
       }
     }
 
@@ -333,93 +317,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
         clearInterval(timerInterval);
         timerInterval = null;
       }
-      if (packetGeneratorInterval) {
-        clearInterval(packetGeneratorInterval);
-        packetGeneratorInterval = null;
-      }
     };
-  };
-
-  const generateSimulatedPacket = () => {
-    const protocols = ["TCP", "UDP", "HTTP", "HTTPS", "DNS", "ICMP", "TLS", "ARP"];
-    const weightedProtocols = [
-      ...Array(30).fill("TCP"), 
-      ...Array(20).fill("UDP"),
-      ...Array(15).fill("HTTP"),
-      ...Array(25).fill("HTTPS"),
-      ...Array(5).fill("DNS"),
-      ...Array(2).fill("ICMP"),
-      ...Array(10).fill("TLS"),
-      ...Array(3).fill("ARP"),
-    ];
-    
-    const randomProtocol = weightedProtocols[Math.floor(Math.random() * weightedProtocols.length)];
-    
-    const privateIpRanges = [
-      "10.0.", "172.16.", "192.168."
-    ];
-    
-    const publicIpRanges = [
-      "8.8.", "1.1.", "34.120.", "104.18.", "13.32.", "151.101.", "35.190."
-    ];
-    
-    const randomPrivateIp = () => `${privateIpRanges[Math.floor(Math.random() * privateIpRanges.length)]}${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}`;
-    const randomPublicIp = () => `${publicIpRanges[Math.floor(Math.random() * publicIpRanges.length)]}${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}`;
-    
-    const isOutbound = Math.random() > 0.5;
-    const source = isOutbound ? randomPrivateIp() : randomPublicIp();
-    const destination = isOutbound ? randomPublicIp() : randomPrivateIp();
-    
-    const commonPorts: Record<string, number[]> = {
-      "HTTP": [80, 8080, 8000],
-      "HTTPS": [443, 8443],
-      "DNS": [53],
-      "SSH": [22],
-      "FTP": [21],
-      "SMTP": [25],
-      "POP3": [110],
-      "IMAP": [143],
-      "NTP": [123]
-    };
-    
-    const getPort = (protocol: string) => {
-      if (commonPorts[protocol]) {
-        return commonPorts[protocol][Math.floor(Math.random() * commonPorts[protocol].length)];
-      }
-      return Math.floor(Math.random() * 60000) + 1024;
-    };
-    
-    const sourcePort = getPort(randomProtocol);
-    const destPort = getPort(randomProtocol);
-    
-    const generateInfo = (protocol: string) => {
-      switch (protocol) {
-        case "HTTP": return `GET /resource HTTP/1.1 ${Math.random() > 0.7 ? "(200 OK)" : ""}`;
-        case "HTTPS": return "Application Data";
-        case "DNS": return `Standard query 0x${Math.floor(Math.random() * 10000).toString(16)} A ${["example.com", "google.com", "github.com", "microsoft.com"][Math.floor(Math.random() * 4)]}`;
-        case "TCP": return `${Math.random() > 0.7 ? "SYN" : Math.random() > 0.5 ? "ACK" : "PSH, ACK"} Seq=${Math.floor(Math.random() * 1000000)} Len=${Math.floor(Math.random() * 1000)}`;
-        case "UDP": return `${sourcePort} → ${destPort} Len=${Math.floor(Math.random() * 500)}`;
-        case "ICMP": return `Echo ${Math.random() > 0.5 ? "request" : "reply"} id=${Math.floor(Math.random() * 1000)}, seq=${Math.floor(Math.random() * 10)}`;
-        case "TLS": return `TLSv1.3 ${Math.random() > 0.7 ? "Client Hello" : "Server Hello"}`;
-        case "ARP": return `Who has ${randomPrivateIp()}? Tell ${randomPrivateIp()}`;
-        default: return "No additional info";
-      }
-    };
-    
-    const newPacket: Packet = {
-      id: Math.floor(Math.random() * 100000),
-      timestamp: new Date().toISOString().substring(11, 23),
-      source: `${source}:${sourcePort}`,
-      destination: `${destination}:${destPort}`,
-      protocol: randomProtocol,
-      length: Math.floor(Math.random() * 1400) + 40,
-      info: generateInfo(randomProtocol)
-    };
-    
-    setPackets(prev => {
-      const newPackets = [newPacket, ...prev];
-      return newPackets.slice(0, 1000);
-    });
   };
 
   const stopCapture = () => {
@@ -427,7 +325,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
     updateStats();
     toast({
       title: "Capture Stopped",
-      description: `Captured ${packets.length} packets${simulationMode ? " (simulated)" : ""}`,
+      description: `Captured ${packets.length} packets`,
     });
   };
   
@@ -486,7 +384,6 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
       interface: selectedInterface,
       duration: captureTime,
       packetCount: packets.length,
-      simulation: simulationMode,
       packets: packets
     };
     
@@ -681,7 +578,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
             ) : (
               <div className="text-sm px-3 py-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-md">
                 <AlertCircle className="h-4 w-4 inline mr-2" />
-                No API key configured. Traffic capture will use simulated data.
+                No API key configured. Traffic capture may not work properly.
               </div>
             )}
             
@@ -732,10 +629,10 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <RadioTower className="h-5 w-5 text-primary" />
-                  Traffic Statistics {simulationMode && <span className="text-sm text-muted-foreground ml-2">(Simulated)</span>}
+                  Traffic Statistics
                 </CardTitle>
                 <CardDescription>
-                  Analysis of {simulationMode ? "simulated" : "captured"} network traffic
+                  Analysis of captured network traffic
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -848,10 +745,10 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Zap className="h-5 w-5 text-primary" />
-                Packet Capture {simulationMode && <span className="text-sm text-muted-foreground ml-2">(Simulated)</span>}
+                Packet Capture
               </CardTitle>
               <CardDescription>
-                {packets.length} packets {simulationMode ? "simulated" : `captured on ${selectedInterface}`}
+                {packets.length} packets captured on {selectedInterface}
               </CardDescription>
             </CardHeader>
             <CardContent>
