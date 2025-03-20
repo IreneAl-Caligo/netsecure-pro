@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Activity, RadioTower, Zap, AlertCircle, FileDown, Wifi } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
   const [apiKey, setApiKey] = useState("");
   const [selectedProvider, setSelectedProvider] = useState("");
   const [showApiSettings, setShowApiSettings] = useState(false);
+  const [simulationMode, setSimulationMode] = useState(false);
   const { toast } = useToast();
 
   const apiProviders = scannerApi.getProvidersByType('traffic');
@@ -68,6 +70,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
       setSelectedProvider(apiProviders[0].name);
     }
     
+    // Default interfaces in case we can't detect any
     const mockInterfaces = [
       { name: "eth0", description: "Ethernet Adapter" },
       { name: "wlan0", description: "Wireless Adapter" },
@@ -79,19 +82,32 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
     const getInterfaces = async () => {
       try {
         try {
+          console.log("Attempting to get network interfaces from backend API");
           const response = await fetch('/api/network-interfaces');
           if (response.ok) {
-            const data = await response.json();
-            if (data.interfaces && Array.isArray(data.interfaces)) {
-              setInterfaces(data.interfaces);
-              return;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+              const data = await response.json();
+              if (data.interfaces && Array.isArray(data.interfaces)) {
+                setInterfaces(data.interfaces);
+                return;
+              }
+            } else {
+              console.log("Response is not JSON:", contentType);
+              // Response is not JSON, fallback to mock interfaces
+              throw new Error("Response is not JSON");
             }
+          } else {
+            console.log("Backend API returned non-OK status:", response.status);
+            throw new Error(`Backend API returned ${response.status}`);
           }
         } catch (e) {
-          console.log("Backend API not available, using mock interfaces");
+          console.log("Backend API not available, using mock interfaces", e);
         }
         
         try {
+          // Try to detect network interfaces using WebRTC
+          console.log("Attempting to detect interfaces with WebRTC");
           const pc = new RTCPeerConnection({
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
           });
@@ -102,12 +118,21 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
           pc.addEventListener('icegatheringstatechange', () => {
             if (pc.iceGatheringState === 'complete') {
               if (pc.localDescription?.sdp) {
+                const foundIPs: string[] = [];
                 pc.localDescription.sdp.split('\n').forEach(line => {
                   if (line.indexOf('a=candidate:') === 0) {
                     const parts = line.split(' ');
                     const addr = parts[4];
-                    if (addr.indexOf('.') !== -1) {
+                    if (addr.indexOf('.') !== -1 && !foundIPs.includes(addr)) {
+                      foundIPs.push(addr);
                       console.log(`Found local IP: ${addr}`);
+                      // Add to interfaces if not already there
+                      setInterfaces(prev => {
+                        if (!prev.some(iface => iface.name === addr)) {
+                          return [...prev, { name: addr, description: "Detected Interface" }];
+                        }
+                        return prev;
+                      });
                     }
                   }
                 });
@@ -124,7 +149,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
     };
     
     getInterfaces();
-  }, []);
+  }, [apiProviders]);
 
   const handleSaveApiSettings = () => {
     scannerApi.setApiKey('traffic', apiKey, selectedProvider);
@@ -155,6 +180,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
       setPackets([]);
       setStats(null);
       setCaptureError(null);
+      setSimulationMode(false);
 
       toast({
         title: "Capture Started",
@@ -166,6 +192,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
       }, 1000);
 
       try {
+        console.log("Attempting to capture traffic from backend API");
         let response;
         try {
           response = await fetch(`/api/capture-traffic`, {
@@ -179,10 +206,11 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
             })
           });
         } catch (e) {
-          console.log("Backend API not available, trying external services");
+          console.log("Backend API not available, trying external services", e);
         }
         
         if (!response || !response.ok) {
+          console.log("Attempting to use external API for traffic capture");
           const headers: HeadersInit = {
             'Content-Type': 'application/json',
           };
@@ -191,50 +219,68 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
             headers['Authorization'] = `Bearer ${apiKey}`;
           }
           
-          response = await fetch(`https://api.packet-capture.example/capture`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              interface: selectedInterface,
-              format: captureFormat,
-              duration: 300
-            })
-          });
+          // Actually use the scannerApi service instead of making direct fetch calls
+          try {
+            const baseUrl = scannerApi.getBaseUrl('traffic');
+            const provider = scannerApi.getApiProvider('traffic');
+            console.log(`Using ${provider} API at ${baseUrl} for traffic capture`);
+            
+            response = await fetch(`${baseUrl}/capture`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                interface: selectedInterface,
+                format: captureFormat,
+                duration: 300
+              })
+            });
+          } catch (e) {
+            console.error("External API not available:", e);
+            throw e;
+          }
         }
         
         if (response && response.ok) {
-          const reader = response.body?.getReader();
-          
-          if (!reader) {
-            throw new Error('Stream reader not available');
-          }
-          
-          const processPackets = async () => {
-            try {
-              const { done, value } = await reader.read();
-              if (done) {
-                return;
-              }
-              
-              const packetData = JSON.parse(new TextDecoder().decode(value));
-              setPackets(prev => [packetData, ...prev].slice(0, 1000));
-              updateStats();
-              
-              await processPackets();
-            } catch (e) {
-              console.error('Error processing packet:', e);
-              throw e;
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const reader = response.body?.getReader();
+            
+            if (!reader) {
+              throw new Error('Stream reader not available');
             }
-          };
-          
-          await processPackets();
+            
+            const processPackets = async () => {
+              try {
+                const { done, value } = await reader.read();
+                if (done) {
+                  return;
+                }
+                
+                const packetData = JSON.parse(new TextDecoder().decode(value));
+                setPackets(prev => [packetData, ...prev].slice(0, 1000));
+                updateStats();
+                
+                await processPackets();
+              } catch (e) {
+                console.error('Error processing packet:', e);
+                throw e;
+              }
+            };
+            
+            await processPackets();
+          } else {
+            console.log("Response is not JSON:", contentType);
+            throw new Error("Response is not JSON");
+          }
         } else {
           throw new Error('Failed to access packet capture API');
         }
       } catch (apiError) {
         console.error('API Error:', apiError);
-        setCaptureError("Real-time traffic capture requires special permissions or extensions. Showing simulated traffic for educational purposes.");
+        setSimulationMode(true);
+        setCaptureError("Using simulated traffic data for demonstration. Real traffic capture would require API access.");
         
+        // Generate simulated traffic data
         packetGeneratorInterval = setInterval(() => {
           if (!capturing) {
             if (packetGeneratorInterval) {
@@ -244,90 +290,12 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
             return;
           }
           
-          const protocols = ["TCP", "UDP", "HTTP", "HTTPS", "DNS", "ICMP", "TLS", "ARP"];
-          const weightedProtocols = [
-            ...Array(30).fill("TCP"), 
-            ...Array(20).fill("UDP"),
-            ...Array(15).fill("HTTP"),
-            ...Array(25).fill("HTTPS"),
-            ...Array(5).fill("DNS"),
-            ...Array(2).fill("ICMP"),
-            ...Array(10).fill("TLS"),
-            ...Array(3).fill("ARP"),
-          ];
-          
-          const randomProtocol = weightedProtocols[Math.floor(Math.random() * weightedProtocols.length)];
-          
-          const privateIpRanges = [
-            "10.0.", "172.16.", "192.168."
-          ];
-          
-          const publicIpRanges = [
-            "8.8.", "1.1.", "34.120.", "104.18.", "13.32.", "151.101.", "35.190."
-          ];
-          
-          const randomPrivateIp = () => `${privateIpRanges[Math.floor(Math.random() * privateIpRanges.length)]}${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}`;
-          const randomPublicIp = () => `${publicIpRanges[Math.floor(Math.random() * publicIpRanges.length)]}${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}`;
-          
-          const isOutbound = Math.random() > 0.5;
-          const source = isOutbound ? randomPrivateIp() : randomPublicIp();
-          const destination = isOutbound ? randomPublicIp() : randomPrivateIp();
-          
-          const commonPorts: Record<string, number[]> = {
-            "HTTP": [80, 8080, 8000],
-            "HTTPS": [443, 8443],
-            "DNS": [53],
-            "SSH": [22],
-            "FTP": [21],
-            "SMTP": [25],
-            "POP3": [110],
-            "IMAP": [143],
-            "NTP": [123]
-          };
-          
-          const getPort = (protocol: string) => {
-            if (commonPorts[protocol]) {
-              return commonPorts[protocol][Math.floor(Math.random() * commonPorts[protocol].length)];
-            }
-            return Math.floor(Math.random() * 60000) + 1024;
-          };
-          
-          const sourcePort = getPort(randomProtocol);
-          const destPort = getPort(randomProtocol);
-          
-          const generateInfo = (protocol: string) => {
-            switch (protocol) {
-              case "HTTP": return `GET /resource HTTP/1.1 ${Math.random() > 0.7 ? "(200 OK)" : ""}`;
-              case "HTTPS": return "Application Data";
-              case "DNS": return `Standard query 0x${Math.floor(Math.random() * 10000).toString(16)} A ${["example.com", "google.com", "github.com", "microsoft.com"][Math.floor(Math.random() * 4)]}`;
-              case "TCP": return `${Math.random() > 0.7 ? "SYN" : Math.random() > 0.5 ? "ACK" : "PSH, ACK"} Seq=${Math.floor(Math.random() * 1000000)} Len=${Math.floor(Math.random() * 1000)}`;
-              case "UDP": return `${sourcePort} → ${destPort} Len=${Math.floor(Math.random() * 500)}`;
-              case "ICMP": return `Echo ${Math.random() > 0.5 ? "request" : "reply"} id=${Math.floor(Math.random() * 1000)}, seq=${Math.floor(Math.random() * 10)}`;
-              case "TLS": return `TLSv1.3 ${Math.random() > 0.7 ? "Client Hello" : "Server Hello"}`;
-              case "ARP": return `Who has ${randomPrivateIp()}? Tell ${randomPrivateIp()}`;
-              default: return "No additional info";
-            }
-          };
-          
-          const newPacket: Packet = {
-            id: Math.floor(Math.random() * 100000),
-            timestamp: new Date().toISOString().substring(11, 23),
-            source: `${source}:${sourcePort}`,
-            destination: `${destination}:${destPort}`,
-            protocol: randomProtocol,
-            length: Math.floor(Math.random() * 1400) + 40,
-            info: generateInfo(randomProtocol)
-          };
-          
-          setPackets(prev => {
-            const newPackets = [newPacket, ...prev];
-            return newPackets.slice(0, 1000);
-          });
-          
+          generateSimulatedPacket();
           updateStats();
         }, 200);
       }
       
+      // Auto-stop after 5 minutes to prevent excessive resource usage
       setTimeout(() => {
         if (capturing) {
           stopCapture();
@@ -372,12 +340,94 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
     };
   };
 
+  const generateSimulatedPacket = () => {
+    const protocols = ["TCP", "UDP", "HTTP", "HTTPS", "DNS", "ICMP", "TLS", "ARP"];
+    const weightedProtocols = [
+      ...Array(30).fill("TCP"), 
+      ...Array(20).fill("UDP"),
+      ...Array(15).fill("HTTP"),
+      ...Array(25).fill("HTTPS"),
+      ...Array(5).fill("DNS"),
+      ...Array(2).fill("ICMP"),
+      ...Array(10).fill("TLS"),
+      ...Array(3).fill("ARP"),
+    ];
+    
+    const randomProtocol = weightedProtocols[Math.floor(Math.random() * weightedProtocols.length)];
+    
+    const privateIpRanges = [
+      "10.0.", "172.16.", "192.168."
+    ];
+    
+    const publicIpRanges = [
+      "8.8.", "1.1.", "34.120.", "104.18.", "13.32.", "151.101.", "35.190."
+    ];
+    
+    const randomPrivateIp = () => `${privateIpRanges[Math.floor(Math.random() * privateIpRanges.length)]}${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}`;
+    const randomPublicIp = () => `${publicIpRanges[Math.floor(Math.random() * publicIpRanges.length)]}${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}`;
+    
+    const isOutbound = Math.random() > 0.5;
+    const source = isOutbound ? randomPrivateIp() : randomPublicIp();
+    const destination = isOutbound ? randomPublicIp() : randomPrivateIp();
+    
+    const commonPorts: Record<string, number[]> = {
+      "HTTP": [80, 8080, 8000],
+      "HTTPS": [443, 8443],
+      "DNS": [53],
+      "SSH": [22],
+      "FTP": [21],
+      "SMTP": [25],
+      "POP3": [110],
+      "IMAP": [143],
+      "NTP": [123]
+    };
+    
+    const getPort = (protocol: string) => {
+      if (commonPorts[protocol]) {
+        return commonPorts[protocol][Math.floor(Math.random() * commonPorts[protocol].length)];
+      }
+      return Math.floor(Math.random() * 60000) + 1024;
+    };
+    
+    const sourcePort = getPort(randomProtocol);
+    const destPort = getPort(randomProtocol);
+    
+    const generateInfo = (protocol: string) => {
+      switch (protocol) {
+        case "HTTP": return `GET /resource HTTP/1.1 ${Math.random() > 0.7 ? "(200 OK)" : ""}`;
+        case "HTTPS": return "Application Data";
+        case "DNS": return `Standard query 0x${Math.floor(Math.random() * 10000).toString(16)} A ${["example.com", "google.com", "github.com", "microsoft.com"][Math.floor(Math.random() * 4)]}`;
+        case "TCP": return `${Math.random() > 0.7 ? "SYN" : Math.random() > 0.5 ? "ACK" : "PSH, ACK"} Seq=${Math.floor(Math.random() * 1000000)} Len=${Math.floor(Math.random() * 1000)}`;
+        case "UDP": return `${sourcePort} → ${destPort} Len=${Math.floor(Math.random() * 500)}`;
+        case "ICMP": return `Echo ${Math.random() > 0.5 ? "request" : "reply"} id=${Math.floor(Math.random() * 1000)}, seq=${Math.floor(Math.random() * 10)}`;
+        case "TLS": return `TLSv1.3 ${Math.random() > 0.7 ? "Client Hello" : "Server Hello"}`;
+        case "ARP": return `Who has ${randomPrivateIp()}? Tell ${randomPrivateIp()}`;
+        default: return "No additional info";
+      }
+    };
+    
+    const newPacket: Packet = {
+      id: Math.floor(Math.random() * 100000),
+      timestamp: new Date().toISOString().substring(11, 23),
+      source: `${source}:${sourcePort}`,
+      destination: `${destination}:${destPort}`,
+      protocol: randomProtocol,
+      length: Math.floor(Math.random() * 1400) + 40,
+      info: generateInfo(randomProtocol)
+    };
+    
+    setPackets(prev => {
+      const newPackets = [newPacket, ...prev];
+      return newPackets.slice(0, 1000);
+    });
+  };
+
   const stopCapture = () => {
     setCapturing(false);
     updateStats();
     toast({
       title: "Capture Stopped",
-      description: `Captured ${packets.length} packets on ${selectedInterface}`,
+      description: `Captured ${packets.length} packets${simulationMode ? " (simulated)" : ""}`,
     });
   };
   
@@ -401,12 +451,14 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
     const now = new Date();
     const timePoints: Record<string, number> = {};
     
+    // Create time points for the last 60 seconds
     for (let i = 0; i < 60; i++) {
       const time = new Date(now.getTime() - (i * 1000));
       const timeStr = time.toISOString().substring(11, 19);
       timePoints[timeStr] = 0;
     }
     
+    // Fill in the data for each time point
     packets.forEach(packet => {
       const packetTime = packet.timestamp.substring(0, 8);
       if (timePoints[packetTime] !== undefined) {
@@ -434,10 +486,12 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
       interface: selectedInterface,
       duration: captureTime,
       packetCount: packets.length,
+      simulation: simulationMode,
       packets: packets
     };
     
     try {
+      console.log("Attempting to download capture via backend API");
       fetch('/api/download-capture', {
         method: 'POST',
         headers: {
@@ -447,6 +501,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
       })
       .then(response => {
         if (!response.ok) {
+          console.log("Backend API returned non-OK status:", response.status);
           throw new Error('Failed to download');
         }
         return response.blob();
@@ -476,6 +531,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
     }
     
     function fallbackDownload() {
+      console.log("Using fallback download method (JSON format)");
       const blob = new Blob([JSON.stringify(captureData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -625,7 +681,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
             ) : (
               <div className="text-sm px-3 py-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-md">
                 <AlertCircle className="h-4 w-4 inline mr-2" />
-                No API key configured. Some features may be limited to simulated data.
+                No API key configured. Traffic capture will use simulated data.
               </div>
             )}
             
@@ -642,7 +698,7 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
                   <span>Capturing packets...</span>
                   <span>Time: {captureTime}s</span>
                 </div>
-                {progress > 0 && <Progress value={progress} className="h-2" />}
+                <Progress value={Math.min((captureTime / 300) * 100, 100)} className="h-2" />
               </div>
             )}
           </CardContent>
@@ -676,10 +732,10 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <RadioTower className="h-5 w-5 text-primary" />
-                  Traffic Statistics
+                  Traffic Statistics {simulationMode && <span className="text-sm text-muted-foreground ml-2">(Simulated)</span>}
                 </CardTitle>
                 <CardDescription>
-                  Analysis of captured network traffic
+                  Analysis of {simulationMode ? "simulated" : "captured"} network traffic
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -792,10 +848,10 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Zap className="h-5 w-5 text-primary" />
-                Packet Capture
+                Packet Capture {simulationMode && <span className="text-sm text-muted-foreground ml-2">(Simulated)</span>}
               </CardTitle>
               <CardDescription>
-                {packets.length} packets captured on {selectedInterface}
+                {packets.length} packets {simulationMode ? "simulated" : `captured on ${selectedInterface}`}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -848,4 +904,3 @@ export function TrafficAnalyzer({ hasApiKey = false }: TrafficAnalyzerProps) {
     </div>
   );
 }
-
