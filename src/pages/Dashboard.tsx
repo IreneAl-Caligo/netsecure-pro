@@ -8,7 +8,6 @@ import { TrafficAnalyzer } from "@/components/scanner/TrafficAnalyzer";
 import { PortScanner } from "@/components/scanner/PortScanner";
 import { ApiSettingsView } from "@/components/scanner/ApiSettingsView";
 import { scannerApi } from "@/services/ScannerApiService";
-import { Navbar } from "@/components/Navbar";
 import type { ScannerType } from "@/services/ScannerApiService";
 
 interface DashboardProps {
@@ -66,66 +65,56 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
       component: <ApiSettingsView />
     }
   ];
-
-  const handleApiSettingsClick = () => {
-    setActiveScanner('api-settings');
-  };
   
   return (
-    <>
-      <Navbar 
-        activeScanner={activeScanner} 
-        onApiSettingsClick={handleApiSettingsClick} 
-      />
-      <div className="container mx-auto px-4 py-10 max-w-7xl transition-all duration-500">
-        {!activeScanner ? (
-          <div className="space-y-10 animate-fade-in">
-            <div className="text-center space-y-4">
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Advanced security tools for network monitoring and vulnerability assessment
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {scanners.slice(0, 4).map((scanner) => (
-                <ScannerCard
-                  key={scanner.id}
-                  title={scanner.title}
-                  description={scanner.description}
-                  icon={scanner.icon}
-                  onClick={() => setActiveScanner(scanner.id)}
-                  className="animate-scale-in"
-                />
-              ))}
-            </div>
+    <div className="container mx-auto px-4 py-10 max-w-7xl transition-all duration-500">
+      {!activeScanner ? (
+        <div className="space-y-10 animate-fade-in">
+          <div className="text-center space-y-4">
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Advanced security tools for network monitoring and vulnerability assessment
+            </p>
           </div>
-        ) : (
-          <div className="space-y-6">
-            <button
-              onClick={() => setActiveScanner(null)}
-              className="flex items-center text-sm font-medium hover:text-primary transition-colors mb-4"
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {scanners.slice(0, 4).map((scanner) => (
+              <ScannerCard
+                key={scanner.id}
+                title={scanner.title}
+                description={scanner.description}
+                icon={scanner.icon}
+                onClick={() => setActiveScanner(scanner.id)}
+                className="animate-scale-in"
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <button
+            onClick={() => setActiveScanner(null)}
+            className="flex items-center text-sm font-medium hover:text-primary transition-colors mb-4"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="mr-1"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mr-1"
-              >
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-              Back to dashboard
-            </button>
-            
-            {scanners.find(scanner => scanner.id === activeScanner)?.component}
-          </div>
-        )}
-      </div>
-    </>
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Back to dashboard
+          </button>
+          
+          {scanners.find(scanner => scanner.id === activeScanner)?.component}
+        </div>
+      )}
+    </div>
   );
 }

@@ -18,17 +18,15 @@ export function Navbar({ activeScanner, onApiSettingsClick }: NavbarProps) {
             <span className="text-xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
               Netsecure Pro
             </span>
-            {onApiSettingsClick && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={onApiSettingsClick}
-                className={`ml-4 text-sm ${activeScanner === 'api-settings' ? 'bg-accent/20 text-accent hover:text-accent' : ''}`}
-              >
-                <Settings className="h-4 w-4 mr-1" />
-                API Settings
-              </Button>
-            )}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => window.location.href = '/#/api-settings'}
+              className={`ml-4 text-sm ${activeScanner === 'api-settings' ? 'bg-accent/20 text-accent hover:text-accent' : ''}`}
+            >
+              <Settings className="h-4 w-4 mr-1" />
+              API Settings
+            </Button>
           </div>
           <div className="flex items-center space-x-4">
             <ThemeToggle />
