@@ -1,3 +1,4 @@
+
 import { Layout } from "@/components/Layout";
 import Dashboard from "./Dashboard";
 import { ThemeProvider } from "@/providers/ThemeProvider";
@@ -15,21 +16,27 @@ const Index = () => {
     traffic: false
   });
   const [activeScanner, setActiveScanner] = useState<string | null>(() => {
-    // Check if the URL contains an API settings hash
-    if (window.location.hash === '#/api-settings') {
-      return 'api-settings';
-    }
-    return null;
+    // Check if the URL contains an API settings hash immediately
+    return window.location.hash === '#/api-settings' ? 'api-settings' : null;
   });
 
+  // Immediately update the hash if it doesn't match the active scanner
   useEffect(() => {
-    // Listen for hash changes
+    if (activeScanner === 'api-settings' && window.location.hash !== '#/api-settings') {
+      window.location.hash = '#/api-settings';
+    } else if (activeScanner === null && window.location.hash === '#/api-settings') {
+      setActiveScanner('api-settings');
+    }
+  }, [activeScanner]);
+
+  useEffect(() => {
+    // Improved hash change handler with immediate execution
     const handleHashChange = () => {
-      if (window.location.hash === '#/api-settings') {
-        setActiveScanner('api-settings');
-      }
+      const newActiveScanner = window.location.hash === '#/api-settings' ? 'api-settings' : null;
+      setActiveScanner(newActiveScanner);
     };
 
+    // Add event listener for future changes
     window.addEventListener('hashchange', handleHashChange);
     
     return () => {
