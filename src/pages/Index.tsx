@@ -1,10 +1,10 @@
-
 import { Layout } from "@/components/Layout";
 import Dashboard from "./Dashboard";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { useEffect, useState } from "react";
 import { scannerApi } from "@/services/ScannerApiService";
 import { useToast } from "@/components/ui/use-toast";
+import { ApiSettingsView } from "@/components/scanner/ApiSettingsView";
 
 const Index = () => {
   const { toast } = useToast();

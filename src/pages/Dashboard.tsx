@@ -71,6 +71,7 @@ export default function Dashboard({ apiKeysConfigured }: DashboardProps) {
       {!activeScanner ? (
         <div className="space-y-10 animate-fade-in">
           <div className="text-center space-y-4">
+            <h1 className="text-3xl font-bold mb-2">Netsecure Pro</h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Advanced security tools for network monitoring and vulnerability assessment
             </p>
