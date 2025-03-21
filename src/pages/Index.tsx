@@ -15,34 +15,43 @@ const Index = () => {
     port: false,
     traffic: false
   });
+  
+  // Initialize activeScanner state based on URL hash
   const [activeScanner, setActiveScanner] = useState<string | null>(() => {
-    // Check if the URL contains an API settings hash immediately
     return window.location.hash === '#/api-settings' ? 'api-settings' : null;
   });
 
-  // Immediately update the hash if it doesn't match the active scanner
+  // Ensure hash and state are synchronized immediately
   useEffect(() => {
-    if (activeScanner === 'api-settings' && window.location.hash !== '#/api-settings') {
-      window.location.hash = '#/api-settings';
-    } else if (activeScanner === null && window.location.hash === '#/api-settings') {
-      setActiveScanner('api-settings');
-    }
-  }, [activeScanner]);
-
-  useEffect(() => {
-    // Improved hash change handler with immediate execution
     const handleHashChange = () => {
-      const newActiveScanner = window.location.hash === '#/api-settings' ? 'api-settings' : null;
-      setActiveScanner(newActiveScanner);
+      const isApiSettings = window.location.hash === '#/api-settings';
+      setActiveScanner(isApiSettings ? 'api-settings' : null);
     };
 
-    // Add event listener for future changes
+    // Check hash on mount and set state accordingly
+    handleHashChange();
+    
+    // Add event listener for future hash changes
     window.addEventListener('hashchange', handleHashChange);
     
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
   }, []);
+
+  // Update hash when activeScanner changes
+  useEffect(() => {
+    if (activeScanner === 'api-settings') {
+      // Only set hash if it's not already set to avoid loops
+      if (window.location.hash !== '#/api-settings') {
+        window.location.hash = '#/api-settings';
+      }
+    } else if (activeScanner === null && window.location.hash === '#/api-settings') {
+      // Clear hash when returning to main view
+      // Use history.replaceState to avoid adding to history
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [activeScanner]);
 
   useEffect(() => {
     // Load saved API keys on startup
@@ -85,7 +94,8 @@ const Index = () => {
             <button
               onClick={() => {
                 setActiveScanner(null);
-                window.location.hash = '';
+                // Use history.replaceState to prevent adding to browser history
+                window.history.replaceState(null, '', window.location.pathname);
               }}
               className="flex items-center text-sm font-medium hover:text-primary transition-colors mb-4"
             >
