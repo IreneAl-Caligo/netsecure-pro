@@ -18,36 +18,36 @@ const Index = () => {
   
   // Initialize activeScanner state based on URL hash
   const [activeScanner, setActiveScanner] = useState<string | null>(() => {
-    return window.location.hash === '#/api-settings' ? 'api-settings' : null;
+    const hash = window.location.hash;
+    return hash === '#/api-settings' ? 'api-settings' : null;
   });
 
-  // Ensure hash and state are synchronized immediately
+  // Ensure hash and state are synchronized
   useEffect(() => {
     const handleHashChange = () => {
-      const isApiSettings = window.location.hash === '#/api-settings';
+      const hash = window.location.hash;
+      const isApiSettings = hash === '#/api-settings';
       setActiveScanner(isApiSettings ? 'api-settings' : null);
     };
 
-    // Check hash on mount and set state accordingly
-    handleHashChange();
-    
-    // Add event listener for future hash changes
+    // Setup event listener for hash changes
     window.addEventListener('hashchange', handleHashChange);
+    
+    // Run once on mount to ensure sync with URL
+    handleHashChange();
     
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
   }, []);
 
-  // Update hash when activeScanner changes
+  // Update hash when activeScanner changes programmatically
   useEffect(() => {
-    if (activeScanner === 'api-settings') {
-      // Only set hash if it's not already set to avoid loops
-      if (window.location.hash !== '#/api-settings') {
-        window.location.hash = '#/api-settings';
-      }
+    // Skip during initial render or if activeScanner was updated due to hash change
+    if (activeScanner === 'api-settings' && window.location.hash !== '#/api-settings') {
+      window.location.hash = '#/api-settings';
     } else if (activeScanner === null && window.location.hash === '#/api-settings') {
-      // Clear hash when returning to main view
+      // Only clear hash when state explicitly wants no hash
       // Use history.replaceState to avoid adding to history
       window.history.replaceState(null, '', window.location.pathname);
     }

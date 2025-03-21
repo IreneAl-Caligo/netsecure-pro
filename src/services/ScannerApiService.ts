@@ -1,3 +1,4 @@
+
 /**
  * This service handles API calls for the various security scanning components
  */
@@ -61,6 +62,8 @@ class ScannerApiService {
       this.initialized = true;
     } catch (error) {
       console.error("Error loading API keys from storage:", error);
+      // Still mark as initialized to prevent repeated failures
+      this.initialized = true;
     }
   }
 
@@ -117,7 +120,7 @@ class ScannerApiService {
     this.loadApiKeysFromStorage();
     
     // Try to get from memory first
-    let key = this.apiKeys[scannerType];
+    let key = this.apiKeys[scannerType] || '';
     
     // If not in memory, try localStorage
     if (!key) {
@@ -142,7 +145,7 @@ class ScannerApiService {
     this.loadApiKeysFromStorage();
     
     // Try to get from memory first
-    let provider = this.apiProviders[scannerType];
+    let provider = this.apiProviders[scannerType] || '';
     
     // If not in memory, try localStorage
     if (!provider) {

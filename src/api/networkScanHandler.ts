@@ -10,7 +10,10 @@ export async function handleNetworkScan(ipRange: string, scanMethod: string) {
     // Check if we have an API key for network scanning
     const apiKey = scannerApi.getApiKey('network');
     if (!apiKey) {
-      throw new Error('No API key available for network scanning');
+      return {
+        success: false,
+        error: 'No API key available for network scanning'
+      };
     }
     
     // Use our scanner API service to handle the network scan with real data
@@ -45,7 +48,15 @@ async function performBrowserNetworkDetection(ipRange: string) {
       });
       
       peerConnection.createDataChannel('');
-      peerConnection.createOffer().then(offer => peerConnection.setLocalDescription(offer));
+      peerConnection.createOffer()
+        .then(offer => peerConnection.setLocalDescription(offer))
+        .catch(err => {
+          console.error("WebRTC offer error:", err);
+          reject({ 
+            success: false, 
+            error: "WebRTC error: Could not create connection offer."
+          });
+        });
       
       let localIP: string | null = null;
       let timeout: ReturnType<typeof setTimeout>;

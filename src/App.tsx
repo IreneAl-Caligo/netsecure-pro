@@ -29,7 +29,15 @@ const App = () => (
           {/* Handle /api-settings route with hash redirect */}
           <Route 
             path="/api-settings" 
-            element={<Navigate to="/#/api-settings" replace />} 
+            element={
+              <Navigate 
+                to={{
+                  pathname: "/",
+                  hash: "/api-settings"
+                }} 
+                replace 
+              />
+            } 
           />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
