@@ -140,18 +140,21 @@ export function NetworkScanner({ hasApiKey }: NetworkScannerProps) {
       } catch (apiError: any) {
         console.error('API Error:', apiError);
         
+        if (progressInterval) {
+          clearInterval(progressInterval);
+          progressInterval = null;
+        }
+        
+        // Always set progress to 100 to indicate scan completion, even on error
+        setProgress(100);
+        
+        // Check if the error is related to API key
         if (apiError.message?.includes('API key')) {
           setError("Invalid or expired API key. Please update your API key in the settings.");
           setShowApiConfig(true);
         } else {
           setError(`Network scanning error: ${apiError.message || 'Unknown error'}. Network scanning requires special permissions or APIs.`);
         }
-        
-        if (progressInterval) {
-          clearInterval(progressInterval);
-          progressInterval = null;
-        }
-        setProgress(100);
         
         toast({
           title: "Scan Failed",
@@ -166,6 +169,7 @@ export function NetworkScanner({ hasApiKey }: NetworkScannerProps) {
         progressInterval = null;
       }
       setScanning(false);
+      setProgress(0); // Reset progress on complete failure
       setError("An unexpected error occurred. Network scanning requires special permissions in web browsers.");
       toast({
         title: "Error",

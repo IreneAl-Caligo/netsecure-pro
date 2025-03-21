@@ -139,6 +139,19 @@ async function performBrowserNetworkDetection(ipRange: string) {
         }
       });
       
+      // Additional safety - listen for errors
+      peerConnection.addEventListener('error', (err) => {
+        console.error('WebRTC Error:', err);
+        if (!localIP) {
+          clearTimeout(timeout);
+          peerConnection.close();
+          resolve({
+            success: false,
+            error: "WebRTC connection error. Cannot detect network information."
+          });
+        }
+      });
+      
     } catch (error) {
       console.error("WebRTC error:", error);
       reject({ 

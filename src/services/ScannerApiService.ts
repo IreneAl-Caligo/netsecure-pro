@@ -1,4 +1,3 @@
-
 /**
  * This service handles API calls for the various security scanning components
  */
@@ -90,6 +89,12 @@ class ScannerApiService {
     this.loadApiKeysFromStorage();
     
     try {
+      // Don't set empty API keys
+      if (!apiKey || apiKey.trim() === '') {
+        console.error(`Attempted to set empty API key for ${scannerType}`);
+        return false;
+      }
+      
       this.apiKeys[scannerType] = apiKey;
       localStorage.setItem(`scanner_api_key_${scannerType}`, apiKey);
       
@@ -188,8 +193,10 @@ class ScannerApiService {
    * In development, this will always succeed to avoid CORS/network issues
    */
   async testApiKey(scannerType: ScannerType, apiKey: string, provider?: string): Promise<boolean> {
-    // In development, just simulate a successful test
-    // In production, uncomment the code below to actually test the key
+    if (!apiKey || apiKey.trim() === '') {
+      console.error("Cannot test empty API key");
+      return false;
+    }
     
     // For development, simulate a short delay and return success
     return new Promise((resolve) => {
@@ -262,6 +269,12 @@ class ScannerApiService {
     data: any,
     backendPath?: string
   ): Promise<Response> {
+    // Check if API key is available when making a request to external API
+    const apiKey = this.getApiKey(scannerType);
+    if (!apiKey && !backendPath) {
+      throw new Error(`No API key available for ${scannerType} scanning`);
+    }
+    
     // Try our backend API first if a path is provided
     if (backendPath) {
       try {

@@ -2,7 +2,7 @@
 import { Layout } from "@/components/Layout";
 import Dashboard from "./Dashboard";
 import { ThemeProvider } from "@/providers/ThemeProvider";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { scannerApi } from "@/services/ScannerApiService";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiSettingsView } from "@/components/scanner/ApiSettingsView";
@@ -22,14 +22,15 @@ const Index = () => {
     return hash === '#/api-settings' ? 'api-settings' : null;
   });
 
+  // Function to handle hash changes
+  const handleHashChange = useCallback(() => {
+    const hash = window.location.hash;
+    const isApiSettings = hash === '#/api-settings';
+    setActiveScanner(isApiSettings ? 'api-settings' : null);
+  }, []);
+
   // Ensure hash and state are synchronized
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash;
-      const isApiSettings = hash === '#/api-settings';
-      setActiveScanner(isApiSettings ? 'api-settings' : null);
-    };
-
     // Setup event listener for hash changes
     window.addEventListener('hashchange', handleHashChange);
     
@@ -39,7 +40,7 @@ const Index = () => {
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
     };
-  }, []);
+  }, [handleHashChange]);
 
   // Update hash when activeScanner changes programmatically
   useEffect(() => {
@@ -53,6 +54,7 @@ const Index = () => {
     }
   }, [activeScanner]);
 
+  // Load API keys and notify about missing ones
   useEffect(() => {
     // Load saved API keys on startup
     const scannerTypes = ['vulnerability', 'network', 'port', 'traffic'] as const;
