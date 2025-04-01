@@ -134,7 +134,7 @@ serve(async (req) => {
     } catch (error) {
       console.error(`API request error: ${error.message}`);
 
-      // Since the API request failed, we need to return an appropriate error
+      // Return an error without simulated data
       return new Response(
         JSON.stringify({ 
           error: `Failed to connect to ${provider} API: ${error.message}`,

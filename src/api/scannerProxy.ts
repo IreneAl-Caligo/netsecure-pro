@@ -32,6 +32,11 @@ export async function callScannerApi(
       throw new Error(`Failed to call scanner API: ${error.message}`);
     }
 
+    if (responseData.error) {
+      console.error('API error:', responseData.error);
+      throw new Error(responseData.error || 'API request failed');
+    }
+
     console.log(`Successfully received response from ${scanType} API`);
     return responseData;
   } catch (err) {
