@@ -8,7 +8,6 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { handleNetworkScan } from "@/api/networkScanHandler";
 import { scannerApi } from "@/services/ScannerApiService";
 import { ApiKeyConfig } from "./ApiKeyConfig";
 
@@ -114,8 +113,8 @@ export function NetworkScanner({ hasApiKey }: NetworkScannerProps) {
       }, 500);
 
       try {
-        // Use the network scan handler which now properly uses the API key
-        const scanData = await handleNetworkScan(ipRange, scanMethod);
+        // Use the scannerApi to perform the scan
+        const scanData = await scannerApi.scanNetwork(ipRange, scanMethod);
         
         if (progressInterval) {
           clearInterval(progressInterval);
@@ -123,17 +122,27 @@ export function NetworkScanner({ hasApiKey }: NetworkScannerProps) {
         }
         setProgress(100);
         
-        if (scanData.success && scanData.devices && Array.isArray(scanData.devices)) {
+        if (scanData.success && scanData.devices) {
           setResults(scanData.devices);
           
           if (scanData.message) {
-            setError(scanData.message);
+            if (scanData.devices.length === 0) {
+              toast({
+                title: "Scan Complete",
+                description: scanData.message || "No devices found on your network",
+              });
+            } else {
+              toast({
+                title: "Scan Complete",
+                description: `Found ${scanData.devices.length} devices on your network`,
+              });
+            }
+          } else {
+            toast({
+              title: "Scan Complete",
+              description: `Found ${scanData.devices.length} devices on your network`,
+            });
           }
-          
-          toast({
-            title: "Scan Complete",
-            description: `Found ${scanData.devices.length} devices on your network`,
-          });
         } else {
           throw new Error(scanData.error || 'Invalid response from network scan API');
         }
@@ -153,12 +162,12 @@ export function NetworkScanner({ hasApiKey }: NetworkScannerProps) {
           setError("Invalid or expired API key. Please update your API key in the settings.");
           setShowApiConfig(true);
         } else {
-          setError(`Network scanning error: ${apiError.message || 'Unknown error'}. Network scanning requires special permissions or APIs.`);
+          setError(`Network scanning error: ${apiError.message || 'Unknown error'}`);
         }
         
         toast({
           title: "Scan Failed",
-          description: "Failed to complete network scan",
+          description: apiError.message || "Failed to complete network scan",
           variant: "destructive",
         });
       }
@@ -170,7 +179,7 @@ export function NetworkScanner({ hasApiKey }: NetworkScannerProps) {
       }
       setScanning(false);
       setProgress(0); // Reset progress on complete failure
-      setError("An unexpected error occurred. Network scanning requires special permissions in web browsers.");
+      setError("An unexpected error occurred. Please check your API configuration and try again.");
       toast({
         title: "Error",
         description: "An unexpected error occurred",
