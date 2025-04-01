@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Server, Layers, AlertTriangle, Shield, Bell, Settings } from "lucide-react";
+import { Server, Layers, AlertTriangle, Shield, Bell, Settings, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +45,6 @@ export function PortScanner() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if API key is configured
     const apiKey = scannerApi.getApiKey('port');
     if (!apiKey) {
       setError("No API key configured. Real port scanning requires an API key from a security scanning service.");
@@ -62,7 +61,6 @@ export function PortScanner() {
       return;
     }
 
-    // Check if API key is configured
     const apiKey = scannerApi.getApiKey('port');
     if (!apiKey) {
       setError("No API key configured. Real port scanning requires an API key from a security scanning service.");
@@ -76,7 +74,6 @@ export function PortScanner() {
     setIdsAlerts([]);
     setError(null);
 
-    // Start progress animation
     const interval = setInterval(() => {
       setProgress((prev) => {
         const newProgress = prev + Math.random() * 5;
@@ -88,14 +85,12 @@ export function PortScanner() {
     }, 200);
 
     try {
-      // Parse the ports to scan based on scan type
       const portsToScan = scanType === "custom" 
         ? customPorts
         : scanType === "full" 
           ? "1-65535"
           : "21,22,23,25,53,80,110,111,135,139,143,443,445,993,995,1723,3306,3389,5900,8080";
       
-      // Use the ScannerApiService to perform the scan
       const scanData = await scannerApi.scanPorts(target, portsToScan, scanType, idsEnabled);
       
       clearInterval(interval);
@@ -136,7 +131,6 @@ export function PortScanner() {
       clearInterval(interval);
       setProgress(100);
       
-      // Check if the error is related to API key
       if (error.message?.includes('API key')) {
         setError("Invalid or expired API key. Please update your API key in the settings.");
         setShowApiConfig(true);
@@ -153,7 +147,7 @@ export function PortScanner() {
       setScanning(false);
     }
   };
-  
+
   const startIDSMonitoring = () => {
     if (idsMonitoring) return;
     
@@ -166,7 +160,7 @@ export function PortScanner() {
     // In a real implementation, this would connect to a WebSocket or Server-Sent Events endpoint
     // to receive real-time alerts from the IDS.
   };
-  
+
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case "Critical": return "text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-300";
