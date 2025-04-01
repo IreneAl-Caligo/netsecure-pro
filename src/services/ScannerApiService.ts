@@ -8,6 +8,7 @@ import {
   trafficAnalyzerAPIs, 
   portScannerAPIs 
 } from '@/config/scannerConfig';
+import { callScannerApi } from '@/api/scannerProxy';
 
 export interface ApiConfig {
   apiKey?: string;
@@ -207,19 +208,6 @@ class ScannerApiService {
     }
     
     try {
-      // Set up the base URL and headers for the test
-      let baseUrl = this.baseUrls[scannerType];
-      
-      // If provider is specified, try to get the URL from our config
-      if (provider) {
-        const providers = this.getProvidersByType(scannerType);
-        const providerInfo = providers.find(p => p.name === provider);
-        if (providerInfo) {
-          baseUrl = providerInfo.url;
-        }
-      }
-      
-      // Different test endpoints for different scanner types
       const testEndpoints = {
         vulnerability: '/verify-key',
         network: '/verify-key',
@@ -229,29 +217,19 @@ class ScannerApiService {
       
       // Make an actual API request to test the key
       try {
-        const response = await fetch(`${baseUrl}${testEndpoints[scannerType]}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({ test: true })
-        });
+        // Call the scanner API using our proxy
+        await callScannerApi(
+          scannerType,
+          testEndpoints[scannerType],
+          apiKey,
+          provider || this.getApiProvider(scannerType) || 'default',
+          { test: true }
+        );
         
-        // If we get a response, consider the key valid
-        if (response.ok) {
-          return true;
-        }
-        
-        // For now, we'll simulate a successful test since we're in development
-        // and the actual endpoints may not be accessible
-        console.log(`[DEV] Simulating successful API key test for ${scannerType}`);
         return true;
       } catch (error) {
-        // If the actual API request fails (e.g., CORS, network error),
-        // still return true for development purposes
-        console.warn(`API test error (simulating success):`, error);
-        return true;
+        console.error("API key test failed:", error);
+        return false;
       }
     } catch (error) {
       console.error(`Error testing API key for ${scannerType}:`, error);
@@ -260,29 +238,12 @@ class ScannerApiService {
   }
 
   /**
-   * Get headers with API key if available
-   */
-  private getHeaders(scannerType: ScannerType): HeadersInit {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json'
-    };
-    
-    const apiKey = this.getApiKey(scannerType);
-    if (apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    }
-    
-    return headers;
-  }
-
-  /**
    * Make a scan request to the appropriate API
    */
   async makeRequest(
     scannerType: ScannerType,
     endpoint: string,
-    data: any,
-    backendPath?: string
+    data: any
   ): Promise<any> {
     // Check if API key is available
     const apiKey = this.getApiKey(scannerType);
@@ -290,27 +251,25 @@ class ScannerApiService {
       throw new Error(`No API key available for ${scannerType} scanning`);
     }
     
-    // Get the base URL and headers
-    const baseUrl = this.getBaseUrl(scannerType);
-    const headers = this.getHeaders(scannerType);
+    const provider = this.getApiProvider(scannerType);
+    if (!provider) {
+      throw new Error(`No API provider selected for ${scannerType} scanning`);
+    }
     
-    // Make the actual API request
     try {
-      const response = await fetch(`${baseUrl}${endpoint}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(data)
-      });
+      // Use the scanner proxy to make the API request
+      const responseData = await callScannerApi(
+        scannerType,
+        endpoint,
+        apiKey,
+        provider,
+        data
+      );
       
-      // Parse the response as JSON
-      const responseData = await response.json();
       return responseData;
     } catch (error) {
       console.error(`API request error:`, error);
-      
-      // Since we're supposed to use real data and not simulated data,
-      // we'll throw an error to indicate the API call failed
-      throw new Error(`Failed to connect to ${scannerType} API. Please check your API key and try again.`);
+      throw error;
     }
   }
 
@@ -355,17 +314,12 @@ class ScannerApiService {
         requestData
       );
       
-      // If the API returned no vulnerabilities, we'll create a default object
-      // to prevent UI errors
-      if (!responseData || !responseData.vulnerabilities) {
-        return {
-          success: true,
-          vulnerabilities: [],
-          message: "Scan completed. No vulnerabilities found."
-        };
-      }
-      
-      return responseData;
+      // Return the actual API response - don't create fake data
+      return {
+        success: true,
+        vulnerabilities: responseData.vulnerabilities || [],
+        message: responseData.message || "Scan completed."
+      };
     } catch (error) {
       console.error('Vulnerability scan error:', error);
       throw error;
@@ -411,17 +365,12 @@ class ScannerApiService {
         requestData
       );
       
-      // If the API returned no devices, we'll create a default object
-      // to prevent UI errors
-      if (!responseData || !responseData.devices) {
-        return {
-          success: true,
-          devices: [],
-          message: "Scan completed. No devices found in the specified range."
-        };
-      }
-      
-      return responseData;
+      // Return the actual API response
+      return {
+        success: true,
+        devices: responseData.devices || [],
+        message: responseData.message || "Network scan completed."
+      };
     } catch (error) {
       console.error('Network scan error:', error);
       throw error;
@@ -479,18 +428,13 @@ class ScannerApiService {
         requestData
       );
       
-      // If the API returned no ports, we'll create a default object
-      // to prevent UI errors
-      if (!responseData || !responseData.ports) {
-        return {
-          success: true,
-          ports: [],
-          idsAlerts: [],
-          message: "Scan completed. No open ports found on the target."
-        };
-      }
-      
-      return responseData;
+      // Return the actual API response
+      return {
+        success: true,
+        ports: responseData.ports || [],
+        idsAlerts: responseData.idsAlerts || [],
+        message: responseData.message || "Port scan completed."
+      };
     } catch (error) {
       console.error('Port scan error:', error);
       throw error;
@@ -540,18 +484,13 @@ class ScannerApiService {
         requestData
       );
       
-      // If the API returned no packets, we'll create a default object
-      // to prevent UI errors
-      if (!responseData || !responseData.packets) {
-        return {
-          success: true,
-          packets: [],
-          stats: { totalPackets: 0, captureTime: duration },
-          message: "Analysis completed. No packets captured with the specified filter."
-        };
-      }
-      
-      return responseData;
+      // Return the actual API response
+      return {
+        success: true,
+        packets: responseData.packets || [],
+        stats: responseData.stats || { totalPackets: 0, captureTime: duration },
+        message: responseData.message || "Traffic analysis completed."
+      };
     } catch (error) {
       console.error('Traffic analysis error:', error);
       throw error;

@@ -29,7 +29,6 @@ serve(async (req) => {
     let baseUrl = '';
     switch (scanType) {
       case 'vulnerability':
-        // Add vulnerability scanner providers
         switch (provider) {
           case 'Acunetix':
             baseUrl = 'https://api.acunetix.com/v1';
@@ -45,7 +44,6 @@ serve(async (req) => {
         }
         break;
       case 'network':
-        // Add network scanner providers
         switch (provider) {
           case 'Shodan':
             baseUrl = 'https://api.shodan.io';
@@ -61,13 +59,12 @@ serve(async (req) => {
         }
         break;
       case 'port':
-        // Add port scanner providers
         switch (provider) {
           case 'Nmap API':
-            baseUrl = 'https://api.nmap.example';
+            baseUrl = 'https://api.nmap.org/v1';
             break;
           case 'OpenVAS':
-            baseUrl = 'https://api.openvas.example';
+            baseUrl = 'https://api.openvas.org/v1';
             break;
           case 'Qualys':
             baseUrl = 'https://api.qualys.com/v1';
@@ -77,13 +74,12 @@ serve(async (req) => {
         }
         break;
       case 'traffic':
-        // Add traffic analyzer providers
         switch (provider) {
           case 'NetworkMiner':
-            baseUrl = 'https://api.networkminer.example';
+            baseUrl = 'https://api.networkminer.net/v1';
             break;
           case 'Wireshark API':
-            baseUrl = 'https://api.wireshark.example';
+            baseUrl = 'https://api.wireshark.org/v1';
             break;
           case 'Cloudshark':
             baseUrl = 'https://api.cloudshark.org/v1';
@@ -101,6 +97,8 @@ serve(async (req) => {
 
     // Make the request to the external API
     try {
+      console.log(`Making request to ${baseUrl}${endpoint}`);
+      
       const apiResponse = await fetch(`${baseUrl}${endpoint}`, {
         method: 'POST',
         headers: {
@@ -110,13 +108,28 @@ serve(async (req) => {
         body: JSON.stringify(data)
       });
 
+      // Check if the response is ok
+      if (!apiResponse.ok) {
+        const errorText = await apiResponse.text();
+        console.error(`API responded with status ${apiResponse.status}: ${errorText}`);
+        
+        return new Response(
+          JSON.stringify({ 
+            error: `API responded with status ${apiResponse.status}`,
+            message: `The API provider returned an error. Please check your API key and request parameters.`
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: apiResponse.status }
+        );
+      }
+
       // Parse the response
       const responseData = await apiResponse.json();
+      console.log(`Successfully received response from ${provider} API`);
 
       // Return the response to the client
       return new Response(
         JSON.stringify(responseData),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: apiResponse.status }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     } catch (error) {
       console.error(`API request error: ${error.message}`);

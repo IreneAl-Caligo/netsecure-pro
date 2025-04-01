@@ -6,11 +6,11 @@
 // Vulnerability Scanner API options
 export const vulnerabilityScannerAPIs = [
   { name: "Acunetix", url: "https://api.acunetix.com/v1" },
-  { name: "StackHawk", url: "https://api.stackhawk.com/v1" },
-  { name: "OWASP ZAP", url: "https://api.zaproxy.org/v1" },
-  { name: "Qualys", url: "https://api.qualys.com/v1" },
-  { name: "Nessus", url: "https://api.tenable.com/v1" },
-  { name: "Burp Suite", url: "https://api.burpsuite.com/v1" }
+  { name: "StackHawk", url: "https://api.stackhawk.com/api" },
+  { name: "OWASP ZAP", url: "https://zap.example.com/api" },
+  { name: "Qualys", url: "https://qualysapi.qualys.com/api" },
+  { name: "Nessus", url: "https://cloud.tenable.com/api" },
+  { name: "Burp Suite", url: "https://portswigger.net/burp/api" }
 ];
 
 // Network Scanner API options
@@ -36,8 +36,8 @@ export const trafficAnalyzerAPIs = [
 export const portScannerAPIs = [
   { name: "Nmap API", url: "https://api.nmap.org/v1" },
   { name: "OpenVAS", url: "https://api.openvas.org/v1" },
-  { name: "Qualys", url: "https://api.qualys.com/v1" },
+  { name: "Qualys", url: "https://qualysapi.qualys.com/api" },
   { name: "Snort IDS", url: "https://api.snort.org/v1" },
   { name: "Suricata", url: "https://api.suricata.io/v1" },
-  { name: "Rapid7 Nexpose", url: "https://api.rapid7.com/nexpose/v1" }
+  { name: "Rapid7 Nexpose", url: "https://insightvm.rapid7.com/api/3" }
 ];

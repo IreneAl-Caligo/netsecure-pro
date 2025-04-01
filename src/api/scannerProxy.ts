@@ -14,7 +14,9 @@ export async function callScannerApi(
   data: any
 ) {
   try {
-    // First try to use the Supabase edge function
+    console.log(`Calling ${scanType} API for provider ${provider}`);
+    
+    // Make the request through the Supabase edge function
     const { data: responseData, error } = await supabase.functions.invoke("security-scanner", {
       body: {
         scanType,
@@ -30,12 +32,10 @@ export async function callScannerApi(
       throw new Error(`Failed to call scanner API: ${error.message}`);
     }
 
+    console.log(`Successfully received response from ${scanType} API`);
     return responseData;
   } catch (err) {
     console.error('Scanner proxy error:', err);
-    
-    // If Supabase edge function fails, fall back to direct API call
-    console.log('Falling back to direct API call');
     throw new Error('Failed to process API request. Please check your API key and try again.');
   }
 }
