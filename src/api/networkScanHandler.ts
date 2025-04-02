@@ -17,12 +17,21 @@ export async function handleNetworkScan(ipRange: string, scanMethod: string) {
     }
     
     // Use our scanner API service to handle the network scan with real data
-    return await scannerApi.scanNetwork(ipRange, scanMethod);
+    try {
+      const result = await scannerApi.scanNetwork(ipRange, scanMethod);
+      return result;
+    } catch (apiError: any) {
+      console.error("API request failed:", apiError);
+      return { 
+        success: false, 
+        error: apiError.message || "API Error: Network scanning failed. Please check your API credentials and try again." 
+      };
+    }
   } catch (error) {
     console.error("Network scan error:", error);
     return { 
       success: false, 
-      error: "Network scanning failed. Please check your API key and try again." 
+      error: "API Error: Network scanning failed. Please check your API key and try again." 
     };
   }
 }

@@ -29,18 +29,22 @@ export async function callScannerApi(
 
     if (error) {
       console.error('Supabase function error:', error);
-      throw new Error(`Failed to call scanner API: ${error.message}`);
+      throw new Error(`API Error: Failed to call scanner API: ${error.message}`);
     }
 
     if (responseData.error) {
       console.error('API error:', responseData.error);
-      throw new Error(responseData.error || 'API request failed');
+      throw new Error(responseData.error || 'API Error: API request failed');
+    }
+
+    if (!responseData) {
+      throw new Error('API Error: No data received from API');
     }
 
     console.log(`Successfully received response from ${scanType} API`);
     return responseData;
   } catch (err) {
     console.error('Scanner proxy error:', err);
-    throw new Error('Failed to process API request. Please check your API key and try again.');
+    throw new Error(`API Error: ${err.message || 'Failed to process API request. Please check your API key and try again.'}`);
   }
 }

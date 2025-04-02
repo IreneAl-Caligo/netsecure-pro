@@ -18,7 +18,7 @@ serve(async (req) => {
     // Validate required parameters
     if (!scanType || !endpoint || !apiKey || !provider) {
       return new Response(
-        JSON.stringify({ error: "Missing required parameters" }),
+        JSON.stringify({ error: "API Error: Missing required parameters" }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
@@ -90,7 +90,7 @@ serve(async (req) => {
         break;
       default:
         return new Response(
-          JSON.stringify({ error: "Invalid scan type" }),
+          JSON.stringify({ error: "API Error: Invalid scan type" }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         );
     }
@@ -115,7 +115,7 @@ serve(async (req) => {
         
         return new Response(
           JSON.stringify({ 
-            error: `API responded with status ${apiResponse.status}`,
+            error: `API Error: ${provider} API responded with status ${apiResponse.status}`,
             message: `The API provider returned an error. Please check your API key and request parameters.`
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: apiResponse.status }
@@ -137,7 +137,7 @@ serve(async (req) => {
       // Return an error without simulated data
       return new Response(
         JSON.stringify({ 
-          error: `Failed to connect to ${provider} API: ${error.message}`,
+          error: `API Error: Failed to connect to ${provider} API: ${error.message}`,
           message: "API connection failed. This could be due to an invalid API key or the service being unavailable."
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
@@ -147,7 +147,7 @@ serve(async (req) => {
     console.error(`Error processing request: ${error.message}`);
     
     return new Response(
-      JSON.stringify({ error: `Internal error: ${error.message}` }),
+      JSON.stringify({ error: `API Error: Internal error: ${error.message}` }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
